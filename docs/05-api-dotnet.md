@@ -2,29 +2,21 @@
 
 The ASP.NET Core API serves as the orchestration layer for the system. It:
 
-Validates and ingests schedules
-
-Calls the ML inference service
-
-Invokes the C-based simulation engine
-
-Aggregates results into actionable recommendations
-
-Enforces rate limits and demo constraints
+- Validates and ingests schedules
+- Calls the ML inference service
+- Invokes the C-based simulation engine
+- Aggregates results into actionable recommendations
+- Enforces rate limits and demo constraints
 
 This layer contains no ML logic and no heavy computation — it coordinates.
 
 2. Technology Stack
 
-ASP.NET Core Web API (.NET 8)
-
-Minimal APIs or Controllers
-
-JSON-first (CSV supported via upload)
-
-P/Invoke for C simulation engine
-
-Optional in-memory caching (demo mode)
+- ASP.NET Core Web API (.NET 8)
+- Minimal APIs or Controllers
+- JSON-first (CSV supported via upload)
+- P/Invoke for C simulation engine
+- Optional in-memory caching (demo mode)
 
 3. High-Level API Flow
 Client
@@ -47,15 +39,18 @@ GET /health
 
 Used for monitoring and demo uptime.
 
+```json
 { "status": "ok" }
+```
 
 4.2 Analyze a Schedule
 POST /schedule/analyze
 
 Runs inference + simulation for the uploaded schedule.
 
-Request
+**Request**
 
+```json
 {
   "clinic_profile": {
     "clinic_type": "PrimaryCare",
@@ -64,10 +59,11 @@ Request
   },
   "appointments": [ ... ]
 }
+```
 
+**Response**
 
-Response
-
+```json
 {
   "summary": {
     "expected_kept_appointments": 42.3,
@@ -83,14 +79,16 @@ Response
     }
   ]
 }
+```
 
 4.3 Simulate a Strategy
 POST /schedule/simulate
 
 Runs what-if simulations with overbooking rules.
 
-Request
+**Request**
 
+```json
 {
   "strategy": {
     "overbook_percent_by_segment": {
@@ -100,10 +98,11 @@ Request
   },
   "num_trials": 5000
 }
+```
 
+**Response**
 
-Response
-
+```json
 {
   "strategy_name": "Targeted AM Overbooking",
   "metrics": {
@@ -113,24 +112,27 @@ Response
     "revenue_recovered": 740.0
   }
 }
+```
 
 4.4 Optimize Scheduling Policy
 POST /schedule/optimize
 
 Explores multiple strategies and recommends safe overbooking zones.
 
-Request
+**Request**
 
+```json
 {
   "constraints": {
     "max_overload_probability": 0.05,
     "max_expected_wait_minutes": 10
   }
 }
+```
 
+**Response**
 
-Response
-
+```json
 {
   "recommended_strategy": {
     "Tuesday-Morning": 0.12,
@@ -141,46 +143,48 @@ Response
     "overload_probability": 0.048
   }
 }
+```
 
 5. DTOs & Validation
-Required Validation
 
-Enum correctness
+**Required Validation**
 
-Probability bounds
+- Enum correctness
+- Probability bounds
+- Non-negative revenue
+- Required fields present
 
-Non-negative revenue
-
-Required fields present
-
-Validation Failures
+**Validation Failures**
 
 Return 400 Bad Request with structured errors:
 
+```json
 {
   "error": "ValidationFailed",
   "details": [
     "historical_no_show_rate must be between 0 and 1"
   ]
 }
+```
 
 6. ML Integration
-Inference Options
 
-In-process ONNX runtime
+**Inference Options**
 
-Python microservice (FastAPI) over HTTP (optional)
+- In-process ONNX runtime
+- Python microservice (FastAPI) over HTTP (optional)
 
-API responsibility
+**API responsibility**
 
-Convert DTO → feature vector
-
-Batch inference
-
-Attach predictions back to appointments
+- Convert DTO → feature vector
+- Batch inference
+- Attach predictions back to appointments
 
 7. C Engine Integration
-P/Invoke Binding
+
+**P/Invoke Binding**
+
+```csharp
 [DllImport("simulation.dll")]
 public static extern int run_simulation(
     Appt[] appts,
@@ -188,69 +192,57 @@ public static extern int run_simulation(
     ref SimConfig config,
     out SimResult result
 );
+```
 
+**Responsibilities:**
 
-Responsibilities:
-
-Memory-safe marshaling
-
-Batch strategy execution
-
-Error-code handling
+- Memory-safe marshaling
+- Batch strategy execution
+- Error-code handling
 
 8. Rate Limiting & Demo Mode
-Public Demo Constraints
 
-Max appointments per request (e.g., 200)
+**Public Demo Constraints**
 
-Max strategies per optimize call
+- Max appointments per request (e.g., 200)
+- Max strategies per optimize call
+- Fixed num_trials ceiling
+- Anonymous usage
 
-Fixed num_trials ceiling
+**Private Mode (Later)**
 
-Anonymous usage
-
-Private Mode (Later)
-
-Auth (JWT)
-
-Higher limits
-
-Persistent configs
+- Auth (JWT)
+- Higher limits
+- Persistent configs
 
 9. Error Handling Strategy
-Error Type	HTTP Code
-Validation error	400
-Simulation error	500
-ML unavailable	503
-Rate limit exceeded	429
+
+| Error Type | HTTP Code |
+|------------|-----------|
+| Validation error | 400 |
+| Simulation error | 500 |
+| ML unavailable | 503 |
+| Rate limit exceeded | 429 |
+
 10. Logging & Observability
 
-Logged (safe):
+**Logged (safe):**
 
-request size
+- request size
+- runtime metrics
+- error codes
+- drift warnings
 
-runtime metrics
+**Not logged:**
 
-error codes
-
-drift warnings
-
-Not logged:
-
-raw appointment data
-
-any identifiers
+- raw appointment data
+- any identifiers
 
 11. Deliverables
 
-ASP.NET Core Web API
-
-DTOs + validation layer
-
-ML inference client
-
-C engine bindings
-
-Rate limiting middleware
-
-Demo-safe configuration
+- ASP.NET Core Web API
+- DTOs + validation layer
+- ML inference client
+- C engine bindings
+- Rate limiting middleware
+- Demo-safe configuration

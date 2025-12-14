@@ -2,15 +2,11 @@
 
 The simulation engine evaluates schedule outcomes under uncertainty. It consumes per-appointment no-show probabilities from the ML layer and runs fast Monte Carlo simulations to estimate:
 
-expected kept appointments
-
-overload probability (demand > capacity)
-
-expected wait time / queue delay
-
-expected revenue recovered
-
-distributions (not just point estimates)
+- expected kept appointments
+- overload probability (demand > capacity)
+- expected wait time / queue delay
+- expected revenue recovered
+- distributions (not just point estimates)
 
 This is the system’s differentiator: clinics don’t just get predictions — they get policy simulation.
 
@@ -19,23 +15,17 @@ This is the system’s differentiator: clinics don’t just get predictions — 
 
 For each appointment slot i:
 
-p_i: no-show probability (0–1)
-
-service_minutes_i (optional; default from clinic profile)
-
-unit_revenue_i (optional)
+- p_i: no-show probability (0–1)
+- service_minutes_i (optional; default from clinic profile)
+- unit_revenue_i (optional)
 
 Global parameters:
 
-providers_per_block
-
-avg_service_minutes (fallback if per-slot missing)
-
-time_block_minutes (e.g., 240 for a morning block)
-
-num_trials (Monte Carlo iterations)
-
-random_seed (for reproducibility)
+- providers_per_block
+- avg_service_minutes (fallback if per-slot missing)
+- time_block_minutes (e.g., 240 for a morning block)
+- num_trials (Monte Carlo iterations)
+- random_seed (for reproducibility)
 
 2.2 Overbooking Strategy
 
@@ -43,36 +33,29 @@ Defines how many extra appointments are added per segment:
 
 Segments are defined by:
 
-day_of_week
-
-time_block
-
-appointment_type (optional)
+- day_of_week
+- time_block
+- appointment_type (optional)
 
 Example policy:
 
-Tue/Morning: +15%
-
-All other blocks: +0%
+- Tue/Morning: +15%
+- All other blocks: +0%
 
 3. Outputs
 
 Per strategy, return:
 
-expected_kept_appointments
-
-overload_probability
-
-expected_wait_minutes
-
-p95_wait_minutes
-
-revenue_recovered
-
-kept_distribution (optional histogram summary)
+- expected_kept_appointments
+- overload_probability
+- expected_wait_minutes
+- p95_wait_minutes
+- revenue_recovered
+- kept_distribution (optional histogram summary)
 
 Example:
 
+```json
 {
   "expected_kept_appointments": 42.3,
   "overload_probability": 0.04,
@@ -80,6 +63,7 @@ Example:
   "p95_wait_minutes": 18.6,
   "revenue_recovered": 510.0
 }
+```
 
 4. Simulation Model
 4.1 Attendance Sampling
@@ -136,16 +120,16 @@ Goal: 10,000 trials × 1 schedule in under ~100ms on commodity CPU (ballpark tar
 
 Key optimizations:
 
-tight loops, stack arrays where possible
-
-SIMD-friendly Bernoulli sampling (optional)
-
-precomputed segment groupings
-
-avoid heap allocations inside trials
+- tight loops, stack arrays where possible
+- SIMD-friendly Bernoulli sampling (optional)
+- precomputed segment groupings
+- avoid heap allocations inside trials
 
 7. Engine API (C Interface)
+
 7.1 C Header Sketch
+
+```c
 // simulation.h
 
 #pragma once
@@ -177,6 +161,7 @@ typedef struct {
 int run_simulation(const Appt* appts, uint32_t n_appts,
                    const SimConfig* cfg,
                    SimResult* out_result);
+```
 
 8. Strategy Evaluation (Batch Mode)
 
@@ -184,65 +169,57 @@ To support optimization, the C layer should support evaluating multiple strategi
 
 Two options:
 
-Option A (Simpler)
+**Option A (Simpler)**
 
 .NET loop calls C once per strategy.
 
-Option B (Faster, preferred)
+**Option B (Faster, preferred)**
 
 C accepts a list of strategies and returns an array of results:
 
+```c
 int run_simulation_batch(const Appt* appts, uint32_t n_appts,
                          const SimConfig* cfg,
                          const uint16_t* strategy_overbook_additions, // per segment
                          uint32_t n_strategies,
                          SimResult* out_results);
+```
 
 9. Reproducibility
 
-If random_seed is fixed, results are deterministic
-
-PRNG: PCG32 or xorshift32 (fast, consistent)
+- If random_seed is fixed, results are deterministic
+- PRNG: PCG32 or xorshift32 (fast, consistent)
 
 10. Error Handling
 
 Return codes:
 
-0 success
-
-1 invalid config
-
-2 invalid probabilities
-
-3 empty schedule
-
-4 overflow / internal error
+- 0 success
+- 1 invalid config
+- 2 invalid probabilities
+- 3 empty schedule
+- 4 overflow / internal error
 
 11. Testing Plan
-Unit Tests
 
-Bernoulli sampling correctness
+**Unit Tests**
 
-capacity calculation
+- Bernoulli sampling correctness
+- capacity calculation
+- overload probability sanity checks (p=0 vs p=1 extremes)
 
-overload probability sanity checks (p=0 vs p=1 extremes)
+**Property Tests**
 
-Property Tests
+- Increasing overbooking should not reduce overload probability (monotonic expectation)
 
-Increasing overbooking should not reduce overload probability (monotonic expectation)
+**Benchmarks**
 
-Benchmarks
-
-speed vs number of appointments and trials
+- speed vs number of appointments and trials
 
 12. Deliverables
 
-simulation.h / simulation.c
-
-deterministic PRNG
-
-batch strategy support (preferred)
-
-unit tests + benchmark harness
-
-simple CLI runner for debugging (optional)
+- simulation.h / simulation.c
+- deterministic PRNG
+- batch strategy support (preferred)
+- unit tests + benchmark harness
+- simple CLI runner for debugging (optional)

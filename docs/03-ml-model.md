@@ -17,73 +17,60 @@ P(no_show = 1 | features)
 3. Modeling Strategy
 3.1 Baseline Model (MVP)
 
-Logistic Regression
+**Logistic Regression**
 
-Interpretable
-
-Fast to train
-
-CPU-friendly
-
-Strong baseline for binary outcomes
+- Interpretable
+- Fast to train
+- CPU-friendly
+- Strong baseline for binary outcomes
 
 Used to:
 
-Validate feature usefulness
-
-Establish baseline metrics
-
-Provide explainability early
+- Validate feature usefulness
+- Establish baseline metrics
+- Provide explainability early
 
 3.2 Advanced Model (Production)
 
-Gradient Boosted Trees (XGBoost / LightGBM)
+**Gradient Boosted Trees (XGBoost / LightGBM)**
 
 Why:
 
-Handles nonlinear interactions
-
-Strong performance on tabular data
-
-Robust to mixed feature types
-
-Easy to constrain complexity
+- Handles nonlinear interactions
+- Strong performance on tabular data
+- Robust to mixed feature types
+- Easy to constrain complexity
 
 4. Feature Encoding
-Categorical Features
 
-One-hot encoding (baseline)
+**Categorical Features**
 
-Target encoding (advanced)
+- One-hot encoding (baseline)
+- Target encoding (advanced)
 
-Numeric Features
+**Numeric Features**
 
-Lead time
+- Lead time
+- Historical no-show rate
+- Revenue (optional)
+- Standardized or log-transformed if skewed
 
-Historical no-show rate
+**Boolean Features**
 
-Revenue (optional)
-
-Standardized or log-transformed if skewed
-
-Boolean Features
-
-Binary (0/1)
+- Binary (0/1)
 
 5. Training Data
-Data Sources
 
-Synthetic clinic datasets
+**Data Sources**
 
-Open operational scheduling datasets (where available)
+- Synthetic clinic datasets
+- Open operational scheduling datasets (where available)
+- Aggregated historical clinic exports (private deployments)
 
-Aggregated historical clinic exports (private deployments)
+**Training Granularity**
 
-Training Granularity
-
-One row per appointment slot
-
-No patient identifiers retained
+- One row per appointment slot
+- No patient identifiers retained
 
 6. Train / Validation Strategy
 Temporal Split
@@ -95,12 +82,14 @@ Validate on later periods
 Prevents leakage and mirrors real-world use.
 
 7. Evaluation Metrics
-Metric	Purpose
-ROC-AUC	Ranking ability
-Log Loss	Probability calibration
-Brier Score	Forecast accuracy
-Calibration Curve	Over/under-confidence
-Precision @ High Risk	Operational focus
+
+| Metric | Purpose |
+|--------|---------|
+| ROC-AUC | Ranking ability |
+| Log Loss | Probability calibration |
+| Brier Score | Forecast accuracy |
+| Calibration Curve | Over/under-confidence |
+| Precision @ High Risk | Operational focus |
 8. Calibration & Confidence
 Probability Calibration
 
@@ -117,17 +106,16 @@ Output example:
 "confidence_interval": [0.21, 0.33]
 
 9. Explainability
-Feature Importance
 
-Gain-based importance (GBDT)
+**Feature Importance**
 
-Coefficients (logistic)
+- Gain-based importance (GBDT)
+- Coefficients (logistic)
 
-Local Explanations
+**Local Explanations**
 
-SHAP values (optional)
-
-Top drivers per prediction
+- SHAP values (optional)
+- Top drivers per prediction
 
 10. Drift Detection
 
@@ -155,27 +143,22 @@ Batch-friendly for schedules
 
 Stored artifacts:
 
-Trained model file
-
-Feature schema hash
-
-Calibration parameters
-
-Training metadata
+- Trained model file
+- Feature schema hash
+- Calibration parameters
+- Training metadata
 
 13. Failure Modes & Safeguards
-Risk	Mitigation
-Sparse data	Fallback to baseline
-Out-of-distribution inputs	Confidence penalty
-Concept drift	Warning + retrain flag
+
+| Risk | Mitigation |
+|------|------------|
+| Sparse data | Fallback to baseline |
+| Out-of-distribution inputs | Confidence penalty |
+| Concept drift | Warning + retrain flag |
 14. Deliverables
 
-Trained baseline model
-
-Advanced GBDT model
-
-Evaluation report
-
-Explainability outputs
-
-Inference interface
+- Trained baseline model
+- Advanced GBDT model
+- Evaluation report
+- Explainability outputs
+- Inference interface

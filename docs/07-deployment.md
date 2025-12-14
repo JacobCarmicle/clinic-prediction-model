@@ -7,15 +7,11 @@ Yes — cleanly and credibly.
 
 The deployment strategy is designed to:
 
-support a free, anonymous public demo
-
-run on CPU-only infrastructure
-
-minimize operational cost
-
-remain HIPAA-safe
-
-scale down just as well as it scales up
+- support a free, anonymous public demo
+- run on CPU-only infrastructure
+- minimize operational cost
+- remain HIPAA-safe
+- scale down just as well as it scales up
 
 2. High-Level Deployment Architecture
 User (Browser / API Client)
@@ -27,81 +23,71 @@ ML Inference (Local or Sidecar)
 C Simulation Engine (Native Library)
 
 
-Key idea:
+**Key idea:**
 
-One primary service (the .NET API)
-
-ML + C are embedded or sidecar components, not separate paid services
+- One primary service (the .NET API)
+- ML + C are embedded or sidecar components, not separate paid services
 
 3. Recommended Hosting (Free / Near-Free)
-Option A — Azure (Best Resume Alignment)
 
-Azure App Service (Free / Basic tier)
+**Option A — Azure (Best Resume Alignment)**
 
-Azure Container Apps (low-cost, scalable)
+- Azure App Service (Free / Basic tier)
+- Azure Container Apps (low-cost, scalable)
+- Azure Container Registry (free tier for small images)
 
-Azure Container Registry (free tier for small images)
+**Pros:**
 
-Pros:
+- Enterprise credibility
+- Matches your existing Azure experience
+- Easy CI/CD later
 
-Enterprise credibility
+**Option B — Fly.io / Render / Railway**
 
-Matches your existing Azure experience
+- Container-based
+- Free tier sufficient for demo traffic
 
-Easy CI/CD later
+**Pros:**
 
-Option B — Fly.io / Render / Railway
-
-Container-based
-
-Free tier sufficient for demo traffic
-
-Pros:
-
-Extremely simple deployment
-
-Low ops overhead
+- Extremely simple deployment
+- Low ops overhead
 
 4. Container Strategy
-Single Container (Recommended for Demo)
+
+**Single Container (Recommended for Demo)**
+
+```
 Container
 ├── ASP.NET Core API
 ├── ML model artifacts
 └── simulation.so / simulation.dll
+```
 
+**Benefits:**
 
-Benefits:
-
-simpler networking
-
-no service-to-service latency
-
-easier free-tier deployment
+- simpler networking
+- no service-to-service latency
+- easier free-tier deployment
 
 5. ML Deployment Options
-Option 1 — In-Process Inference (Preferred)
 
-Model exported to ONNX
+**Option 1 — In-Process Inference (Preferred)**
 
-Loaded at API startup
+- Model exported to ONNX
+- Loaded at API startup
+- CPU inference via ONNX Runtime
 
-CPU inference via ONNX Runtime
+**Pros:**
 
-Pros:
+- fast
+- cheap
+- no extra services
 
-fast
+**Option 2 — Python Sidecar (Optional)**
 
-cheap
-
-no extra services
-
-Option 2 — Python Sidecar (Optional)
-
-FastAPI service
-
-Used only if training/inference pipeline requires Python
-
-Used mainly in private deployments.
+- FastAPI service
+- Used only if training/inference pipeline requires Python
+- Used mainly in private deployments.
 
 6. C Simulation Integration
 
@@ -116,39 +102,32 @@ Loaded via P/Invoke
 No runtime dependencies
 
 7. Demo Mode Configuration
-Hard Limits
 
-max appointments per request (e.g., 200)
+**Hard Limits**
 
-max strategies per optimization call
+- max appointments per request (e.g., 200)
+- max strategies per optimization call
+- fixed Monte Carlo trials (e.g., 5,000)
+- request timeout caps
 
-fixed Monte Carlo trials (e.g., 5,000)
+**Soft Limits**
 
-request timeout caps
-
-Soft Limits
-
-warnings for large schedules
-
-reduced confidence messaging
+- warnings for large schedules
+- reduced confidence messaging
 
 8. Demo Dataset
 
-Provide:
+**Provide:**
 
-synthetic clinic schedules
+- synthetic clinic schedules
+- realistic no-show distributions
+- multiple specialties
 
-realistic no-show distributions
+**Users can:**
 
-multiple specialties
-
-Users can:
-
-download sample CSV
-
-upload modified versions
-
-experiment without risk
+- download sample CSV
+- upload modified versions
+- experiment without risk
 
 9. CI/CD (Optional but Impressive)
 
@@ -167,24 +146,23 @@ This is resume gold if included.
 
 10. Observability (Minimal)
 
-Track:
+**Track:**
 
-request counts
-
-latency
-
-error rates
-
-simulation time
+- request counts
+- latency
+- error rates
+- simulation time
 
 No PII, no raw data logging.
 
 11. Cost Profile (Demo)
-Component	Cost
-API hosting	$0–$5
-Storage	$0
-Inference	CPU-only
-Simulation	Native C
+
+| Component | Cost |
+|-----------|------|
+| API hosting | $0–$5 |
+| Storage | $0 |
+| Inference | CPU-only |
+| Simulation | Native C |
 
 This is intentionally cheap.
 
@@ -198,12 +176,8 @@ Traffic spike → rate limiting kicks in
 
 13. Deliverables
 
-Dockerfile
-
-Deployment config
-
-Demo dataset
-
-Usage limits
-
-Environment-based config (demo vs private)
+- Dockerfile
+- Deployment config
+- Demo dataset
+- Usage limits
+- Environment-based config (demo vs private)
