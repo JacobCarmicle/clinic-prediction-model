@@ -2,147 +2,176 @@ namespace ClinicFlow.Api.Services.Analysis;
 
 using ClinicFlow.Api.Dtos.Requests;
 using ClinicFlow.Api.Dtos.Responses;
+using ClinicFlow.Api.Services.Simulation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 public static class StrategySimulationService
 {
+    private static readonly SimulationService _simulationService = new();
+
     public static ScheduleSimulationResponseDto Simulate(ScheduleSimulateRequestDto req)
     {
-        // Baseline overall
-        var (baseExpectedKept, baseRevenue) = BaselineMetricsCalculator.Compute(
-            new ScheduleRequestDto(req.ClinicProfile, req.Appointments)
-        );
+        // Build segment mapping: segment key -> segment ID (byte)
+        var segmentKeys = req.Appointments
+            .Select(SegmentKeyBuilder.Build)
+            .Distinct()
+            .OrderBy(k => k)
+            .ToList();
+
+        var segmentKeyToId = segmentKeys
+            .Select((key, idx) => new { key, id = (byte)idx })
+            .ToDictionary(x => x.key, x => x.id);
+
+        // Convert appointments to simulation format with segment IDs
+        var simAppointments = req.Appointments.Select(a => new SimulationAppointment
+        {
+            NoShowProbability = a.HistoricalNoShowRate, // Phase A: use historical rate
+            UnitRevenue = a.UnitRevenue,
+            ServiceMinutes = null, // Use default from config
+            SegmentId = segmentKeyToId[SegmentKeyBuilder.Build(a)]
+        }).ToArray();
+
+        var simConfig = new SimulationConfig
+        {
+            ProvidersPerBlock = req.ClinicProfile.ProvidersPerBlock,
+            AvgServiceMinutes = req.ClinicProfile.AvgServiceMinutes,
+            TimeBlockMinutes = req.ClinicProfile.TimeBlockMinutes,
+            NumTrials = 5000, // Default Monte Carlo trials
+            RandomSeed = 12345 // Fixed seed for reproducibility
+        };
+
+        // Run baseline simulation (no overbooking)
+        var baselineRequest = new SimulationRequest { Appointments = simAppointments };
+        var baselineResult = _simulationService.RunSimulation(baselineRequest, simConfig);
 
         var capacity = CapacityEstimator.ComputeBlockCapacityAppointments(req.ClinicProfile);
-        var (baseOverflow, baseIsOver) = CapacityEstimator.ComputeOverflow(baseExpectedKept, capacity);
+        var baselineOverflow = Math.Max(0.0, baselineResult.ExpectedKept - capacity);
+        var baselineIsOver = baselineOverflow > 0.000001;
 
-        // Baseline per-segment
+        // Build baseline segments using deterministic calculation for comparison
         var baselineSegments = SegmentMetricsCalculator.ComputeBySegment(
             new ScheduleRequestDto(req.ClinicProfile, req.Appointments),
             capacity
         );
 
-        // Build segment-level avg no-show rate (used for synthetic added slots)
-        var segAvgNoShow = req.Appointments
-            .GroupBy(SegmentKeyBuilder.Build)
-            .ToDictionary(
-                g => g.Key,
-                g =>
-                {
-                    var avg = g.Average(a => (double)a.HistoricalNoShowRate);
-                    return Clamp01(avg);
-                }
-            );
-
-        // Clinic-wide avg no-show fallback
-        var clinicAvgNoShow = req.Appointments.Count == 0
-            ? 0.2
-            : Clamp01(req.Appointments.Average(a => (double)a.HistoricalNoShowRate));
-
-        // Compute simulated additions impact
-        double simExpectedKept = baseExpectedKept;
-        double simRevenue = baseRevenue;
-
-        // For revenue of added slots: use segment avg unit revenue (fallback overall avg)
-        var segAvgRevenue = req.Appointments
-            .GroupBy(SegmentKeyBuilder.Build)
-            .ToDictionary(
-                g => g.Key,
-                g => g.Average(a => (double)a.UnitRevenue)
-            );
-
-        var overallAvgRevenue = req.Appointments.Count == 0
-            ? 0.0
-            : req.Appointments.Average(a => (double)a.UnitRevenue);
-
-        // Copy baseline segment objects into a dictionary for easy update
-        var simSegMap = baselineSegments.ToDictionary(s => s.SegmentKey, s => s);
-
+        // Prepare strategy overbooking additions
+        var nSegments = (ushort)segmentKeys.Count;
+        var strategyAdditions = new ushort[nSegments];
+        
         foreach (var kvp in req.Strategy.OverbookAdditionsBySegment)
         {
-            var segmentKey = kvp.Key;
-            var additions = kvp.Value;
-
-            if (additions <= 0) continue;
-
-            var avgNoShow = segAvgNoShow.TryGetValue(segmentKey, out var segNs) ? segNs : clinicAvgNoShow;
-            var pShow = 1.0 - avgNoShow;
-
-            var avgRev = segAvgRevenue.TryGetValue(segmentKey, out var segRev) ? segRev : overallAvgRevenue;
-
-            // Added expected kept and revenue (deterministic)
-            simExpectedKept += additions * pShow;
-            simRevenue += additions * pShow * avgRev;
-
-            // Update segment summary (if segment exists; if not, create it)
-            if (!simSegMap.TryGetValue(segmentKey, out var baseSeg))
+            if (segmentKeyToId.TryGetValue(kvp.Key, out var segId))
             {
-                // Segment not in baseline schedule; create a new baseline segment with zeros
-                baseSeg = new SegmentSummaryDto(
-                    SegmentKey: segmentKey,
+                strategyAdditions[segId] = (ushort)kvp.Value;
+            }
+        }
+
+        // Run simulation with strategy overbooking using batch mode
+        // We create a single strategy array for batch mode
+        var strategyArray = new ushort[][] { strategyAdditions };
+        var simulatedResults = _simulationService.RunSimulationBatch(
+            baselineRequest,
+            simConfig,
+            strategyArray,
+            nSegments
+        );
+
+        var simulatedResult = simulatedResults[0];
+        var simulatedOverflow = Math.Max(0.0, simulatedResult.ExpectedKept - capacity);
+        var simulatedIsOver = simulatedOverflow > 0.000001;
+
+        // Build segment-level comparisons
+        // For segments with overbooking, we need to compute the impact
+        var baselineMap = baselineSegments.ToDictionary(s => s.SegmentKey, s => s);
+        var simSegMap = new Dictionary<string, SegmentSummaryDto>();
+
+        // Calculate simulated segment metrics
+        foreach (var segKey in segmentKeys)
+        {
+            var segId = segmentKeyToId[segKey];
+            var additions = strategyAdditions[segId];
+
+            var baseSeg = baselineMap.TryGetValue(segKey, out var bs)
+                ? bs
+                : new SegmentSummaryDto(
+                    SegmentKey: segKey,
                     ExpectedKeptAppointments: 0,
                     BaselineRevenue: 0,
                     CapacityAppointments: Math.Round(capacity, 2),
                     ExpectedOverflowAppointments: 0,
                     IsOverCapacity: false
                 );
-            }
 
-            var segExpectedKept = baseSeg.ExpectedKeptAppointments + (additions * pShow);
-            var segRevenue = baseSeg.BaselineRevenue + (additions * pShow * avgRev);
-            var segOverflow = Math.Max(0.0, segExpectedKept - capacity);
-            var segIsOver = segOverflow > 0.000001;
+            // For simulated segment, we approximate by adding expected impact of overbooking
+            // This is a simplification - in a full implementation, we'd run per-segment simulations
+            var segAppointments = req.Appointments
+                .Where(a => SegmentKeyBuilder.Build(a) == segKey)
+                .ToList();
 
-            simSegMap[segmentKey] = baseSeg with
-            {
-                ExpectedKeptAppointments = Math.Round(segExpectedKept, 2),
-                BaselineRevenue = Math.Round(segRevenue, 2),
-                CapacityAppointments = Math.Round(capacity, 2),
-                ExpectedOverflowAppointments = Math.Round(segOverflow, 2),
-                IsOverCapacity = segIsOver
-            };
+            var segAvgNoShow = segAppointments.Count > 0
+                ? segAppointments.Average(a => (double)a.HistoricalNoShowRate)
+                : 0.2;
+            var segAvgRevenue = segAppointments.Count > 0
+                ? segAppointments.Average(a => (double)a.UnitRevenue)
+                : 0.0;
+
+            var pShow = 1.0 - segAvgNoShow;
+            var additionalKept = additions * pShow;
+            var additionalRevenue = additions * pShow * segAvgRevenue;
+
+            var simSegExpectedKept = baseSeg.ExpectedKeptAppointments + additionalKept;
+            var simSegRevenue = baseSeg.BaselineRevenue + additionalRevenue;
+            var simSegOverflow = Math.Max(0.0, simSegExpectedKept - capacity);
+            var simSegIsOver = simSegOverflow > 0.000001;
+
+            simSegMap[segKey] = new SegmentSummaryDto(
+                SegmentKey: segKey,
+                ExpectedKeptAppointments: Math.Round(simSegExpectedKept, 2),
+                BaselineRevenue: Math.Round(simSegRevenue, 2),
+                CapacityAppointments: Math.Round(capacity, 2),
+                ExpectedOverflowAppointments: Math.Round(simSegOverflow, 2),
+                IsOverCapacity: simSegIsOver
+            );
         }
 
-        var (simOverflow, simIsOver) = CapacityEstimator.ComputeOverflow(simExpectedKept, capacity);
-
-        // Build segment comparisons (baseline vs simulated)
-        var baselineMap = baselineSegments.ToDictionary(s => s.SegmentKey, s => s);
+        // Build comparisons
         var allKeys = baselineMap.Keys.Union(simSegMap.Keys).OrderBy(k => k).ToList();
-
-        var comparisons = new List<SegmentComparisonDto>();
-        foreach (var key in allKeys)
+        var comparisons = allKeys.Select(key =>
         {
             var b = baselineMap.TryGetValue(key, out var bs)
                 ? bs
                 : new SegmentSummaryDto(key, 0, 0, Math.Round(capacity, 2), 0, false);
 
-            var s = simSegMap[key];
+            var s = simSegMap.TryGetValue(key, out var ss)
+                ? ss
+                : new SegmentSummaryDto(key, 0, 0, Math.Round(capacity, 2), 0, false);
 
-            comparisons.Add(new SegmentComparisonDto(key, b, s));
-        }
+            return new SegmentComparisonDto(key, b, s);
+        }).ToList();
 
+        // Build response
         var baselineSummary = new BaselineSummaryDto(
-            ExpectedKeptAppointments: Math.Round(baseExpectedKept, 2),
-            BaselineRevenue: Math.Round(baseRevenue, 2),
+            ExpectedKeptAppointments: Math.Round(baselineResult.ExpectedKept, 2),
+            BaselineRevenue: Math.Round(baselineResult.RevenueRecovered, 2),
             BlockCapacityAppointments: Math.Round(capacity, 2),
-            ExpectedOverflowAppointments: Math.Round(baseOverflow, 2),
-            IsOverCapacity: baseIsOver
+            ExpectedOverflowAppointments: Math.Round(baselineOverflow, 2),
+            IsOverCapacity: baselineIsOver
         );
 
         var simulatedSummary = new BaselineSummaryDto(
-            ExpectedKeptAppointments: Math.Round(simExpectedKept, 2),
-            BaselineRevenue: Math.Round(simRevenue, 2),
+            ExpectedKeptAppointments: Math.Round(simulatedResult.ExpectedKept, 2),
+            BaselineRevenue: Math.Round(simulatedResult.RevenueRecovered, 2),
             BlockCapacityAppointments: Math.Round(capacity, 2),
-            ExpectedOverflowAppointments: Math.Round(simOverflow, 2),
-            IsOverCapacity: simIsOver
+            ExpectedOverflowAppointments: Math.Round(simulatedOverflow, 2),
+            IsOverCapacity: simulatedIsOver
         );
 
         var delta = new SummaryDeltaDto(
-            DeltaExpectedKeptAppointments: Math.Round(simExpectedKept - baseExpectedKept, 2),
-            DeltaRevenue: Math.Round(simRevenue - baseRevenue, 2),
-            DeltaExpectedOverflowAppointments: Math.Round(simOverflow - baseOverflow, 2)
+            DeltaExpectedKeptAppointments: Math.Round(simulatedResult.ExpectedKept - baselineResult.ExpectedKept, 2),
+            DeltaRevenue: Math.Round(simulatedResult.RevenueRecovered - baselineResult.RevenueRecovered, 2),
+            DeltaExpectedOverflowAppointments: Math.Round(simulatedOverflow - baselineOverflow, 2)
         );
 
         return new ScheduleSimulationResponseDto(
@@ -153,6 +182,4 @@ public static class StrategySimulationService
             Segments: comparisons
         );
     }
-
-    private static double Clamp01(double x) => x < 0 ? 0 : (x > 1 ? 1 : x);
 }

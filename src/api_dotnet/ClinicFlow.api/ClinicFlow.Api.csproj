@@ -11,4 +11,20 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Copy native simulation library to output directory -->
+    <None Include="../../SimulationEngineC/build/libsimulation.dylib" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+      <Link>libsimulation.dylib</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../SimulationEngineC/build/libsimulation.so" Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+      <Link>libsimulation.so</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../SimulationEngineC/build/simulation.dll" Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+      <Link>simulation.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

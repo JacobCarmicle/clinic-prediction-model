@@ -18,3 +18,6 @@ app.MapGet("/health", () => new { status = "ok" })
     .WithTags("Health");
 
 app.Run();
+
+// Make Program accessible for testing
+public partial class Program { }
