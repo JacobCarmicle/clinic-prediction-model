@@ -1,0 +1,769 @@
+openapi: 3.0.3
+info:
+  title: ClinicFlow API
+  description: |
+    Clinic No-Show Prediction & Schedule Optimization API
+    
+    **Phase A (Current):** Deterministic baseline analysis using historical no-show rates
+    **Phase B (Future):** ML-enhanced predictions with confidence intervals
+    **Phase C (Future):** Monte Carlo simulation for risk-based decision making
+  version: 1.0.0
+  contact:
+    name: ClinicFlow API Support
+
+servers:
+  - url: https://api.clinicflow.example.com
+    description: Production server
+  - url: http://localhost:5000
+    description: Local development server
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /schedule/analyze:
+    post:
+      summary: Analyze a schedule (Phase A - Deterministic Baseline)
+      description: |
+        Computes baseline metrics using historical no-show rates.
+        Returns overall summary, per-slot predictions, and segment-level breakdowns.
+      operationId: analyzeSchedule
+      tags:
+        - Schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleRequest'
+            examples:
+              smallClinic:
+                $ref: '#/components/examples/SmallClinicSchedule'
+      responses:
+        '200':
+          description: Analysis completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleAnalysisResponse'
+              examples:
+                withSegments:
+                  $ref: '#/components/examples/AnalyzeResponseWithSegments'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /schedule/simulate:
+    post:
+      summary: Simulate an overbooking strategy (Phase A - Deterministic)
+      description: |
+        Simulates the impact of an overbooking strategy by adding appointments to specified segments.
+        Returns baseline vs simulated comparison with deltas and per-segment breakdowns.
+      operationId: simulateStrategy
+      tags:
+        - Schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleSimulateRequest'
+            examples:
+              overbookingStrategy:
+                $ref: '#/components/examples/OverbookingStrategy'
+      responses:
+        '200':
+          description: Simulation completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleSimulationResponse'
+              examples:
+                withDeltas:
+                  $ref: '#/components/examples/SimulateResponseWithDeltas'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /schedule/optimize:
+    post:
+      summary: Optimize scheduling policy (Phase A - Grid Search)
+      description: |
+        Explores multiple overbooking strategies using grid search and recommends the best strategy
+        that meets operational constraints. Tests single-segment additions across all segments,
+        evaluates each using simulation, and returns the top candidates.
+      operationId: optimizeSchedule
+      tags:
+        - Schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleOptimizeRequest'
+            examples:
+              optimizationRequest:
+                $ref: '#/components/examples/OptimizationRequest'
+      responses:
+        '200':
+          description: Optimization completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleOptimizationResponse'
+              examples:
+                withCandidates:
+                  $ref: '#/components/examples/OptimizationResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ScheduleRequest:
+      type: object
+      required:
+        - clinicProfile
+        - appointments
+      properties:
+        clinicProfile:
+          $ref: '#/components/schemas/ClinicProfile'
+        appointments:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/AppointmentSlot'
+
+    ScheduleSimulateRequest:
+      type: object
+      required:
+        - clinicProfile
+        - appointments
+        - strategy
+      properties:
+        clinicProfile:
+          $ref: '#/components/schemas/ClinicProfile'
+        appointments:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/AppointmentSlot'
+        strategy:
+          $ref: '#/components/schemas/Strategy'
+
+    ClinicProfile:
+      type: object
+      required:
+        - clinicType
+        - providersPerBlock
+        - avgServiceMinutes
+        - timeBlockMinutes
+      properties:
+        clinicType:
+          type: string
+          enum: [PrimaryCare, Dental, PT, Behavioral, Other]
+          description: Type of clinic
+        providersPerBlock:
+          type: integer
+          minimum: 1
+          description: Number of providers per time block
+        avgServiceMinutes:
+          type: integer
+          minimum: 1
+          description: Average service duration in minutes
+        timeBlockMinutes:
+          type: integer
+          minimum: 1
+          description: Duration of a time block in minutes
+
+    AppointmentSlot:
+      type: object
+      required:
+        - appointmentId
+        - appointmentType
+        - dayOfWeek
+        - timeBlock
+        - leadTimeDays
+        - isNewPatient
+        - historicalNoShowRate
+        - unitRevenue
+      properties:
+        appointmentId:
+          type: integer
+          minimum: 0
+          description: Unique identifier for the appointment
+        appointmentType:
+          type: string
+          enum: [NewPatient, FollowUp, Procedure, Lab, Other]
+          description: Type of appointment
+        dayOfWeek:
+          type: string
+          enum: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+          description: Day of the week
+        timeBlock:
+          type: string
+          enum: [Morning, Midday, Afternoon, Evening]
+          description: Time block within the day
+        leadTimeDays:
+          type: integer
+          minimum: 0
+          description: Days between booking and appointment date
+        isNewPatient:
+          type: boolean
+          description: Whether this is a new patient appointment
+        historicalNoShowRate:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Historical no-show rate for this slot category (0-1)
+        unitRevenue:
+          type: number
+          format: float
+          minimum: 0
+          description: Expected revenue per kept appointment
+
+    Strategy:
+      type: object
+      required:
+        - name
+        - overbookAdditionsBySegment
+      properties:
+        name:
+          type: string
+          description: Human-readable name for the strategy
+        overbookAdditionsBySegment:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+          description: |
+            Map of segment keys (format: "DayOfWeek-TimeBlock") to number of additional appointments.
+            Example: {"Tuesday-Morning": 5, "Friday-Afternoon": 3}
+
+    ScheduleAnalysisResponse:
+      type: object
+      required:
+        - summary
+        - slotPredictions
+        - segments
+      properties:
+        summary:
+          $ref: '#/components/schemas/BaselineSummary'
+        slotPredictions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlotPrediction'
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/SegmentSummary'
+
+    ScheduleSimulationResponse:
+      type: object
+      required:
+        - strategyName
+        - baselineSummary
+        - simulatedSummary
+        - delta
+        - segments
+      properties:
+        strategyName:
+          type: string
+          description: Name of the strategy being evaluated
+        baselineSummary:
+          $ref: '#/components/schemas/BaselineSummary'
+        simulatedSummary:
+          $ref: '#/components/schemas/BaselineSummary'
+        delta:
+          $ref: '#/components/schemas/SummaryDelta'
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/SegmentComparison'
+
+    BaselineSummary:
+      type: object
+      required:
+        - expectedKeptAppointments
+        - baselineRevenue
+        - blockCapacityAppointments
+        - expectedOverflowAppointments
+        - isOverCapacity
+      properties:
+        expectedKeptAppointments:
+          type: number
+          format: double
+          description: Expected number of appointments that will be kept (attended)
+        baselineRevenue:
+          type: number
+          format: double
+          description: Expected revenue from kept appointments
+        blockCapacityAppointments:
+          type: number
+          format: double
+          description: Maximum appointments that can be handled per time block
+        expectedOverflowAppointments:
+          type: number
+          format: double
+          description: Expected number of appointments exceeding capacity
+        isOverCapacity:
+          type: boolean
+          description: Whether expected kept appointments exceed capacity
+
+    SlotPrediction:
+      type: object
+      required:
+        - appointmentId
+        - noShowProbability
+      properties:
+        appointmentId:
+          type: integer
+          description: ID of the appointment slot
+        noShowProbability:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+          description: |
+            Predicted probability of no-show (Phase A: uses historical rate as stub)
+
+    SegmentSummary:
+      type: object
+      required:
+        - segmentKey
+        - expectedKeptAppointments
+        - baselineRevenue
+        - capacityAppointments
+        - expectedOverflowAppointments
+        - isOverCapacity
+      properties:
+        segmentKey:
+          type: string
+          description: Segment identifier (format: "DayOfWeek-TimeBlock")
+        expectedKeptAppointments:
+          type: number
+          format: double
+        baselineRevenue:
+          type: number
+          format: double
+        capacityAppointments:
+          type: number
+          format: double
+        expectedOverflowAppointments:
+          type: number
+          format: double
+        isOverCapacity:
+          type: boolean
+
+    SegmentComparison:
+      type: object
+      required:
+        - segmentKey
+        - baseline
+        - simulated
+      properties:
+        segmentKey:
+          type: string
+          description: Segment identifier
+        baseline:
+          $ref: '#/components/schemas/SegmentSummary'
+        simulated:
+          $ref: '#/components/schemas/SegmentSummary'
+
+    SummaryDelta:
+      type: object
+      required:
+        - deltaExpectedKeptAppointments
+        - deltaRevenue
+        - deltaExpectedOverflowAppointments
+      properties:
+        deltaExpectedKeptAppointments:
+          type: number
+          format: double
+          description: Change in expected kept appointments (simulated - baseline)
+        deltaRevenue:
+          type: number
+          format: double
+          description: Change in revenue (simulated - baseline)
+        deltaExpectedOverflowAppointments:
+          type: number
+          format: double
+          description: Change in expected overflow (simulated - baseline)
+
+    ScheduleOptimizeRequest:
+      type: object
+      required:
+        - clinicProfile
+        - appointments
+        - constraints
+        - search
+      properties:
+        clinicProfile:
+          $ref: '#/components/schemas/ClinicProfile'
+        appointments:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/AppointmentSlot'
+        constraints:
+          $ref: '#/components/schemas/OptimizationConstraints'
+        search:
+          $ref: '#/components/schemas/OptimizationSearch'
+
+    OptimizationConstraints:
+      type: object
+      required:
+        - maxExpectedOverflowAppointments
+      properties:
+        maxExpectedOverflowAppointments:
+          type: number
+          format: double
+          minimum: 0
+          description: Maximum allowed overflow appointments
+        minDeltaRevenue:
+          type: number
+          format: double
+          nullable: true
+          description: Minimum revenue improvement required (optional)
+
+    OptimizationSearch:
+      type: object
+      required:
+        - maxAdditionPerSegment
+        - maxTotalAdditions
+      properties:
+        maxAdditionPerSegment:
+          type: integer
+          minimum: 0
+          maximum: 25
+          description: Maximum appointments to add per segment
+        maxTotalAdditions:
+          type: integer
+          minimum: 0
+          maximum: 50
+          description: Maximum total appointments across all segments
+        allowedSegments:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: Optional list of segment keys to consider (null = all segments)
+
+    ScheduleOptimizationResponse:
+      type: object
+      required:
+        - baselineSummary
+        - bestSummary
+        - delta
+        - recommendedStrategy
+        - topCandidates
+      properties:
+        baselineSummary:
+          $ref: '#/components/schemas/BaselineSummary'
+        bestSummary:
+          $ref: '#/components/schemas/BaselineSummary'
+        delta:
+          $ref: '#/components/schemas/SummaryDelta'
+        recommendedStrategy:
+          $ref: '#/components/schemas/Strategy'
+        topCandidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateSummary'
+
+    CandidateSummary:
+      type: object
+      required:
+        - strategyName
+        - overbookAdditionsBySegment
+        - summary
+        - delta
+      properties:
+        strategyName:
+          type: string
+          description: Name of the candidate strategy
+        overbookAdditionsBySegment:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+          description: Map of segment keys to number of additional appointments
+        summary:
+          $ref: '#/components/schemas/BaselineSummary'
+        delta:
+          $ref: '#/components/schemas/SummaryDelta'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - details
+      properties:
+        error:
+          type: string
+          example: ValidationFailed
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+          description: JSON path to the field with error
+          example: appointments[0].historicalNoShowRate
+        message:
+          type: string
+          description: Human-readable error message
+          example: historicalNoShowRate must be between 0 and 1.
+
+  examples:
+    SmallClinicSchedule:
+      summary: Small clinic schedule example
+      value:
+        clinicProfile:
+          clinicType: PrimaryCare
+          providersPerBlock: 2
+          avgServiceMinutes: 20
+          timeBlockMinutes: 240
+        appointments:
+          - appointmentId: 101
+            appointmentType: NewPatient
+            dayOfWeek: Monday
+            timeBlock: Morning
+            leadTimeDays: 7
+            isNewPatient: true
+            historicalNoShowRate: 0.25
+            unitRevenue: 150.0
+          - appointmentId: 102
+            appointmentType: FollowUp
+            dayOfWeek: Monday
+            timeBlock: Morning
+            leadTimeDays: 14
+            isNewPatient: false
+            historicalNoShowRate: 0.15
+            unitRevenue: 100.0
+          - appointmentId: 103
+            appointmentType: FollowUp
+            dayOfWeek: Tuesday
+            timeBlock: Afternoon
+            leadTimeDays: 21
+            isNewPatient: false
+            historicalNoShowRate: 0.12
+            unitRevenue: 100.0
+
+    OverbookingStrategy:
+      summary: Overbooking strategy example
+      value:
+        clinicProfile:
+          clinicType: Dental
+          providersPerBlock: 3
+          avgServiceMinutes: 30
+          timeBlockMinutes: 240
+        appointments:
+          - appointmentId: 201
+            appointmentType: Procedure
+            dayOfWeek: Wednesday
+            timeBlock: Morning
+            leadTimeDays: 10
+            isNewPatient: false
+            historicalNoShowRate: 0.20
+            unitRevenue: 250.0
+          - appointmentId: 202
+            appointmentType: FollowUp
+            dayOfWeek: Wednesday
+            timeBlock: Morning
+            leadTimeDays: 14
+            isNewPatient: false
+            historicalNoShowRate: 0.15
+            unitRevenue: 120.0
+        strategy:
+          name: Wednesday Morning Boost
+          overbookAdditionsBySegment:
+            Wednesday-Morning: 4
+
+    AnalyzeResponseWithSegments:
+      summary: Analyze response with segment breakdown
+      value:
+        summary:
+          expectedKeptAppointments: 38.5
+          baselineRevenue: 4620.0
+          blockCapacityAppointments: 24.0
+          expectedOverflowAppointments: 14.5
+          isOverCapacity: true
+        slotPredictions:
+          - appointmentId: 101
+            noShowProbability: 0.25
+          - appointmentId: 102
+            noShowProbability: 0.15
+          - appointmentId: 103
+            noShowProbability: 0.12
+        segments:
+          - segmentKey: Monday-Morning
+            expectedKeptAppointments: 15.0
+            baselineRevenue: 1800.0
+            capacityAppointments: 24.0
+            expectedOverflowAppointments: 0.0
+            isOverCapacity: false
+          - segmentKey: Tuesday-Afternoon
+            expectedKeptAppointments: 23.5
+            baselineRevenue: 2820.0
+            capacityAppointments: 24.0
+            expectedOverflowAppointments: 0.0
+            isOverCapacity: false
+
+    SimulateResponseWithDeltas:
+      summary: Simulation response with deltas and segment comparisons
+      value:
+        strategyName: Wednesday Morning Boost
+        baselineSummary:
+          expectedKeptAppointments: 28.5
+          baselineRevenue: 3420.0
+          blockCapacityAppointments: 24.0
+          expectedOverflowAppointments: 4.5
+          isOverCapacity: true
+        simulatedSummary:
+          expectedKeptAppointments: 31.7
+          baselineRevenue: 3804.0
+          blockCapacityAppointments: 24.0
+          expectedOverflowAppointments: 7.7
+          isOverCapacity: true
+        delta:
+          deltaExpectedKeptAppointments: 3.2
+          deltaRevenue: 384.0
+          deltaExpectedOverflowAppointments: 3.2
+        segments:
+          - segmentKey: Wednesday-Morning
+            baseline:
+              segmentKey: Wednesday-Morning
+              expectedKeptAppointments: 28.5
+              baselineRevenue: 3420.0
+              capacityAppointments: 24.0
+              expectedOverflowAppointments: 4.5
+              isOverCapacity: true
+            simulated:
+              segmentKey: Wednesday-Morning
+              expectedKeptAppointments: 31.7
+              baselineRevenue: 3804.0
+              capacityAppointments: 24.0
+              expectedOverflowAppointments: 7.7
+              isOverCapacity: true
+
+    OptimizationRequest:
+      summary: Optimization request example
+      value:
+        clinicProfile:
+          clinicType: PrimaryCare
+          providersPerBlock: 3
+          avgServiceMinutes: 15
+          timeBlockMinutes: 240
+        appointments:
+          - appointmentId: 1
+            appointmentType: FollowUp
+            dayOfWeek: Tuesday
+            timeBlock: Morning
+            leadTimeDays: 14
+            isNewPatient: false
+            historicalNoShowRate: 0.18
+            unitRevenue: 120.0
+          - appointmentId: 2
+            appointmentType: NewPatient
+            dayOfWeek: Friday
+            timeBlock: Afternoon
+            leadTimeDays: 7
+            isNewPatient: true
+            historicalNoShowRate: 0.25
+            unitRevenue: 150.0
+        constraints:
+          maxExpectedOverflowAppointments: 5.0
+          minDeltaRevenue: 100.0
+        search:
+          maxAdditionPerSegment: 10
+          maxTotalAdditions: 20
+          allowedSegments:
+            - Tuesday-Morning
+            - Friday-Afternoon
+
+    OptimizationResponse:
+      summary: Optimization response with top candidates
+      value:
+        baselineSummary:
+          expectedKeptAppointments: 42.3
+          baselineRevenue: 5076.0
+          blockCapacityAppointments: 48.0
+          expectedOverflowAppointments: 0.0
+          isOverCapacity: false
+        bestSummary:
+          expectedKeptAppointments: 46.4
+          baselineRevenue: 5568.0
+          blockCapacityAppointments: 48.0
+          expectedOverflowAppointments: 2.1
+          isOverCapacity: false
+        delta:
+          deltaExpectedKeptAppointments: 4.1
+          deltaRevenue: 492.0
+          deltaExpectedOverflowAppointments: 2.1
+        recommendedStrategy:
+          name: Add 5 to Tuesday-Morning
+          overbookAdditionsBySegment:
+            Tuesday-Morning: 5
+        topCandidates:
+          - strategyName: Add 5 to Tuesday-Morning
+            overbookAdditionsBySegment:
+              Tuesday-Morning: 5
+            summary:
+              expectedKeptAppointments: 46.4
+              baselineRevenue: 5568.0
+              blockCapacityAppointments: 48.0
+              expectedOverflowAppointments: 2.1
+              isOverCapacity: false
+            delta:
+              deltaExpectedKeptAppointments: 4.1
+              deltaRevenue: 492.0
+              deltaExpectedOverflowAppointments: 2.1
+          - strategyName: Add 3 to Friday-Afternoon
+            overbookAdditionsBySegment:
+              Friday-Afternoon: 3
+            summary:
+              expectedKeptAppointments: 44.8
+              baselineRevenue: 5376.0
+              blockCapacityAppointments: 48.0
+              expectedOverflowAppointments: 0.0
+              isOverCapacity: false
+            delta:
+              deltaExpectedKeptAppointments: 2.5
+              deltaRevenue: 300.0
+              deltaExpectedOverflowAppointments: 0.0
