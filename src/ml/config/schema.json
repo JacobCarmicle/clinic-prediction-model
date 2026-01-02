@@ -1,0 +1,80 @@
+{
+  "feature_columns": [
+    {
+      "name": "appointment_type",
+      "type": "categorical",
+      "enum_values": ["NewPatient", "FollowUp", "Procedure", "Lab", "Other"],
+      "required": true,
+      "description": "Type of appointment"
+    },
+    {
+      "name": "day_of_week",
+      "type": "categorical",
+      "enum_values": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+      "required": true,
+      "description": "Day of the week"
+    },
+    {
+      "name": "time_block",
+      "type": "categorical",
+      "enum_values": ["Morning", "Midday", "Afternoon", "Evening"],
+      "required": true,
+      "description": "Time of day block"
+    },
+    {
+      "name": "lead_time_days",
+      "type": "numeric",
+      "dtype": "int",
+      "min": 0,
+      "required": true,
+      "description": "Days between booking and appointment"
+    },
+    {
+      "name": "is_new_patient",
+      "type": "boolean",
+      "dtype": "bool",
+      "required": true,
+      "description": "True if first visit"
+    },
+    {
+      "name": "historical_no_show_rate",
+      "type": "numeric",
+      "dtype": "float",
+      "min": 0.0,
+      "max": 1.0,
+      "required": true,
+      "description": "Historical no-show rate for this segment"
+    },
+    {
+      "name": "unit_revenue",
+      "type": "numeric",
+      "dtype": "float",
+      "min": 0.0,
+      "required": true,
+      "description": "Expected revenue per kept appointment"
+    }
+  ],
+  "target_column": {
+    "name": "no_show",
+    "type": "binary",
+    "dtype": "int",
+    "values": [0, 1],
+    "description": "Target variable: 0=kept, 1=no-show"
+  },
+  "optional_columns": [
+    {
+      "name": "appointment_id",
+      "type": "identifier",
+      "dtype": "int",
+      "description": "Unique appointment identifier (for tracking, not used in model)"
+    },
+    {
+      "name": "clinic_specialty",
+      "type": "categorical",
+      "enum_values": ["PrimaryCare", "Dental", "PT", "Behavioral", "Other"],
+      "required": false,
+      "description": "Clinic specialty type (optional)"
+    }
+  ]
+}
+
