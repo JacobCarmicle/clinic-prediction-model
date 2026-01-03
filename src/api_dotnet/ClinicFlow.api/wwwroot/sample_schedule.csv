@@ -1,0 +1,7 @@
+appointment_id,appointment_type,day_of_week,time_block,lead_time_days,is_new_patient,historical_no_show_rate,unit_revenue
+1,FollowUp,Tuesday,Morning,14,false,0.18,120.0
+2,NewPatient,Tuesday,Morning,7,true,0.25,150.0
+3,Procedure,Friday,Afternoon,21,false,0.15,250.0
+4,FollowUp,Monday,Morning,10,false,0.20,120.0
+5,Lab,Wednesday,Midday,5,false,0.12,80.0
+

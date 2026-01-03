@@ -38,8 +38,8 @@ def make_synth_appointments(
 
     # Appointment time (hour) - skew toward business hours
     hour = rng.choice([8,9,10,11,12,13,14,15,16,17],
-        size=n_rows,
-        p=[0.08,0.12,0.13,0.12,0.08,0.10,0.12,0.11,0.09,0.05])
+    size=n_rows,
+    p=[0.08,0.12,0.13,0.12,0.08,0.10,0.12,0.11,0.09,0.05])
     minute = rng.choice([0,15,30,45], size=n_rows, p=[0.55,0.15,0.2,0.1])
     appt_dt = base_dates + pd.to_timedelta(hour, unit="h") + pd.to_timedelta(minute, unit="m")
 
@@ -61,7 +61,7 @@ def make_synth_appointments(
     # Internal IDs for creating correlations (not exported for HIPAA safety)
     clinic_id = rng.integers(1, n_clinics + 1, size=n_rows)
     provider_id = rng.integers(1, n_providers + 1, size=n_rows)
-    
+
     # "Patient key" is synthetic; not a real identifier, just to create repeat behavior
     # Used internally but not exported
     patient_key = rng.integers(1, n_patients_keys + 1, size=n_rows)

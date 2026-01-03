@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClinicFlow - Schedule Optimization</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { opacity: 0.9; }
+        .content { padding: 30px; }
+        .section { margin-bottom: 30px; }
+        .section h2 { margin-bottom: 15px; color: #333; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; color: #555; }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-right: 10px;
+            margin-top: 10px;
+        }
+        button:hover { transform: translateY(-2px); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .results { margin-top: 30px; }
+        .metric-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .metric-card h3 { color: #667eea; margin-bottom: 10px; }
+        .metric-value { font-size: 2em; font-weight: bold; color: #333; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th { background: #f8f9fa; font-weight: 600; }
+        .loading { text-align: center; padding: 40px; color: #667eea; }
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 ClinicFlow</h1>
+            <p>AI-Powered Schedule Optimization for Healthcare Clinics</p>
+        </div>
+        
+        <div class="content">
+            <!-- Clinic Profile Section -->
+            <div class="section">
+                <h2>Clinic Profile</h2>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>Clinic Type</label>
+                        <select id="clinicType">
+                            <option value="PrimaryCare">Primary Care</option>
+                            <option value="Dental">Dental</option>
+                            <option value="PT">Physical Therapy</option>
+                            <option value="Behavioral">Behavioral Health</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Providers per Time Block</label>
+                        <input type="number" id="providersPerBlock" value="3" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Average Service Minutes</label>
+                        <input type="number" id="avgServiceMinutes" value="15" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Time Block Minutes</label>
+                        <input type="number" id="timeBlockMinutes" value="240" min="1">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schedule Upload Section -->
+            <div class="section">
+                <h2>Schedule Upload</h2>
+                <div class="form-group">
+                    <label>Upload CSV or Paste JSON</label>
+                    <input type="file" id="csvFile" accept=".csv" style="margin-bottom: 10px;">
+                    <textarea id="jsonInput" placeholder='Paste JSON schedule here...' rows="8"></textarea>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button onclick="loadSampleData()">📋 Load Sample Data</button>
+                    <button onclick="analyzeSchedule(event)">🔍 Analyze Schedule</button>
+                    <a href="/sample_schedule.csv" download style="text-decoration: none;">
+                        <button type="button">📥 Download CSV Template</button>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div id="results" class="results" style="display: none;">
+                <h2>Analysis Results</h2>
+                <div id="summary"></div>
+                <div id="predictions"></div>
+                <div id="segments"></div>
+            </div>
+
+            <div id="loading" class="loading" style="display: none;">
+                <p>⏳ Analyzing schedule...</p>
+            </div>
+
+            <div id="error"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        function loadSampleData() {
+            const sampleData = {
+                clinicProfile: {
+                    clinicType: "PrimaryCare",
+                    providersPerBlock: 3,
+                    avgServiceMinutes: 15,
+                    timeBlockMinutes: 240
+                },
+                appointments: [
+                    {
+                        appointmentId: 1,
+                        appointmentType: "FollowUp",
+                        dayOfWeek: "Tuesday",
+                        timeBlock: "Morning",
+                        leadTimeDays: 14,
+                        isNewPatient: false,
+                        historicalNoShowRate: 0.18,
+                        unitRevenue: 120.0
+                    },
+                    {
+                        appointmentId: 2,
+                        appointmentType: "NewPatient",
+                        dayOfWeek: "Tuesday",
+                        timeBlock: "Morning",
+                        leadTimeDays: 7,
+                        isNewPatient: true,
+                        historicalNoShowRate: 0.25,
+                        unitRevenue: 150.0
+                    },
+                    {
+                        appointmentId: 3,
+                        appointmentType: "Procedure",
+                        dayOfWeek: "Friday",
+                        timeBlock: "Afternoon",
+                        leadTimeDays: 21,
+                        isNewPatient: false,
+                        historicalNoShowRate: 0.15,
+                        unitRevenue: 250.0
+                    },
+                    {
+                        appointmentId: 4,
+                        appointmentType: "FollowUp",
+                        dayOfWeek: "Monday",
+                        timeBlock: "Morning",
+                        leadTimeDays: 10,
+                        isNewPatient: false,
+                        historicalNoShowRate: 0.20,
+                        unitRevenue: 120.0
+                    },
+                    {
+                        appointmentId: 5,
+                        appointmentType: "Lab",
+                        dayOfWeek: "Wednesday",
+                        timeBlock: "Midday",
+                        leadTimeDays: 5,
+                        isNewPatient: false,
+                        historicalNoShowRate: 0.12,
+                        unitRevenue: 80.0
+                    }
+                ]
+            };
+            document.getElementById('jsonInput').value = JSON.stringify(sampleData, null, 2);
+        }
+
+        async function analyzeSchedule(event) {
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const errorDiv = document.getElementById('error');
+            const summaryDiv = document.getElementById('summary');
+            const predictionsDiv = document.getElementById('predictions');
+            const segmentsDiv = document.getElementById('segments');
+
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            errorDiv.innerHTML = '';
+
+            // Disable button during request
+            const analyzeBtn = event?.target || document.querySelector('button[onclick*="analyzeSchedule"]');
+            let originalText = null;
+            if (analyzeBtn) {
+                originalText = analyzeBtn.textContent;
+                analyzeBtn.disabled = true;
+                analyzeBtn.textContent = '⏳ Analyzing...';
+            }
+
+            try {
+                // Get clinic profile
+                const clinicProfile = {
+                    clinicType: document.getElementById('clinicType').value,
+                    providersPerBlock: parseInt(document.getElementById('providersPerBlock').value),
+                    avgServiceMinutes: parseInt(document.getElementById('avgServiceMinutes').value),
+                    timeBlockMinutes: parseInt(document.getElementById('timeBlockMinutes').value)
+                };
+
+                // Get appointments
+                let appointments;
+                const csvFile = document.getElementById('csvFile').files[0];
+                const jsonInput = document.getElementById('jsonInput').value.trim();
+
+                if (csvFile) {
+                    // Parse CSV
+                    const csvText = await csvFile.text();
+                    appointments = parseCSV(csvText);
+                } else if (jsonInput) {
+                    // Parse JSON
+                    const data = JSON.parse(jsonInput);
+                    appointments = data.appointments || data;
+                } else {
+                    throw new Error('Please upload a CSV file or paste JSON data');
+                }
+
+                // Build request
+                const request = {
+                    clinicProfile: clinicProfile,
+                    appointments: appointments
+                };
+
+                // Call API
+                const response = await fetch(`${API_BASE}/schedule/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(request)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || error.error || 'Request failed');
+                }
+
+                const data = await response.json();
+
+                // Display results
+                displayResults(data);
+                results.style.display = 'block';
+                
+                // Show success message
+                errorDiv.innerHTML = `<div class="success">✅ Analysis complete! Processed ${data.slotPredictions?.length || 0} appointments.</div>`;
+                
+                // Scroll to results
+                results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            } catch (error) {
+                let errorMsg = error.message;
+                if (errorMsg.includes('fetch')) {
+                    errorMsg = 'Cannot reach the API. Make sure the server is running on ' + API_BASE;
+                } else if (errorMsg.includes('JSON')) {
+                    errorMsg = 'Invalid JSON format. Please check your data and try again.';
+                }
+                errorDiv.innerHTML = `<div class="error">❌ Error: ${errorMsg}</div>`;
+            } finally {
+                loading.style.display = 'none';
+                if (analyzeBtn) {
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.textContent = originalText || '🔍 Analyze Schedule';
+                }
+            }
+        }
+
+        function parseCSV(csvText) {
+            const lines = csvText.split('\n').filter(l => l.trim());
+            if (lines.length < 2) throw new Error('CSV must have headers and at least one row');
+            
+            const headers = lines[0].split(',').map(h => h.trim());
+            const appointments = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                const apt = {};
+                headers.forEach((header, idx) => {
+                    let value = values[idx];
+                    // Try to parse as number/boolean
+                    if (value === 'true' || value === 'True') value = true;
+                    else if (value === 'false' || value === 'False') value = false;
+                    else if (!isNaN(value) && value !== '') value = parseFloat(value);
+                    apt[header] = value;
+                });
+                // Map CSV column names to API field names
+                appointments.push({
+                    appointmentId: apt.appointmentId || apt.appointment_id || appointments.length + 1,
+                    appointmentType: apt.appointmentType || apt.appointment_type,
+                    dayOfWeek: apt.dayOfWeek || apt.day_of_week,
+                    timeBlock: apt.timeBlock || apt.time_block,
+                    leadTimeDays: apt.leadTimeDays || apt.lead_time_days,
+                    isNewPatient: apt.isNewPatient !== undefined ? apt.isNewPatient : (apt.is_new_patient === true || apt.is_new_patient === 'true'),
+                    historicalNoShowRate: apt.historicalNoShowRate || apt.historical_no_show_rate,
+                    unitRevenue: apt.unitRevenue || apt.unit_revenue
+                });
+            }
+
+            return appointments;
+        }
+
+        function displayResults(data) {
+            // Summary metrics
+            const summary = data.summary || data.baselineSummary;
+            if (summary) {
+                document.getElementById('summary').innerHTML = `
+                    <div class="grid-4">
+                        <div class="metric-card">
+                            <h3>Expected Kept Appointments</h3>
+                            <div class="metric-value">${summary.expectedKeptAppointments.toFixed(1)}</div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>Expected Revenue</h3>
+                            <div class="metric-value">$${summary.baselineRevenue.toFixed(2)}</div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>Capacity</h3>
+                            <div class="metric-value">${summary.blockCapacityAppointments.toFixed(1)}</div>
+                        </div>
+                        <div class="metric-card">
+                            <h3>Overflow Risk</h3>
+                            <div class="metric-value">${summary.expectedOverflowAppointments.toFixed(1)}</div>
+                            ${summary.isOverCapacity ? '<p style="color: #c33; margin-top: 10px;">⚠️ Over Capacity</p>' : '<p style="color: #3c3; margin-top: 10px;">✅ Within Capacity</p>'}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Predictions table
+            if (data.slotPredictions && data.slotPredictions.length > 0) {
+                let tableHTML = '<h3>No-Show Predictions</h3><table><thead><tr>';
+                tableHTML += '<th>ID</th><th>Type</th><th>Day</th><th>Time</th><th>No-Show Prob</th><th>Confidence</th></tr></thead><tbody>';
+                
+                // Store appointments from request for matching
+                let appointmentsMap = {};
+                try {
+                    const requestData = JSON.parse(document.getElementById('jsonInput').value || '{}');
+                    if (requestData.appointments) {
+                        requestData.appointments.forEach(apt => {
+                            appointmentsMap[apt.appointmentId] = apt;
+                        });
+                    }
+                } catch (e) {
+                    // Ignore parse errors
+                }
+                
+                data.slotPredictions.slice(0, 20).forEach(pred => {
+                    const apt = appointmentsMap[pred.appointmentId];
+                    const probPercent = (pred.noShowProbability * 100).toFixed(1);
+                    const confInterval = pred.confidenceInterval 
+                        ? `${(pred.confidenceInterval[0]*100).toFixed(1)}-${(pred.confidenceInterval[1]*100).toFixed(1)}%`
+                        : 'N/A';
+                    
+                    // Color code by risk level
+                    let riskClass = '';
+                    if (pred.noShowProbability > 0.3) riskClass = 'style="background-color: #fee;"';
+                    else if (pred.noShowProbability > 0.2) riskClass = 'style="background-color: #ffe;"';
+                    
+                    tableHTML += `<tr ${riskClass}>
+                        <td>${pred.appointmentId || 'N/A'}</td>
+                        <td>${apt?.appointmentType || 'N/A'}</td>
+                        <td>${apt?.dayOfWeek || 'N/A'}</td>
+                        <td>${apt?.timeBlock || 'N/A'}</td>
+                        <td><strong>${probPercent}%</strong></td>
+                        <td>${confInterval}</td>
+                    </tr>`;
+                });
+                
+                tableHTML += '</tbody></table>';
+                if (data.slotPredictions.length > 20) {
+                    tableHTML += `<p style="margin-top: 10px; color: #666;">Showing first 20 of ${data.slotPredictions.length} appointments</p>`;
+                }
+                document.getElementById('predictions').innerHTML = tableHTML;
+            } else {
+                document.getElementById('predictions').innerHTML = '';
+            }
+
+            // Segments
+            if (data.segments && data.segments.length > 0) {
+                let segmentsHTML = '<h3>Segment Analysis</h3><table><thead><tr>';
+                segmentsHTML += '<th>Segment</th><th>Expected Kept</th><th>Revenue</th><th>Capacity</th><th>Overflow</th><th>Status</th></tr></thead><tbody>';
+                
+                data.segments.forEach(seg => {
+                    segmentsHTML += `<tr>
+                        <td><strong>${seg.segmentKey}</strong></td>
+                        <td>${seg.expectedKeptAppointments.toFixed(1)}</td>
+                        <td>$${seg.baselineRevenue.toFixed(2)}</td>
+                        <td>${seg.capacityAppointments.toFixed(1)}</td>
+                        <td>${seg.expectedOverflowAppointments.toFixed(1)}</td>
+                        <td>${seg.isOverCapacity ? '⚠️ Over' : '✅ OK'}</td>
+                    </tr>`;
+                });
+                
+                segmentsHTML += '</tbody></table>';
+                document.getElementById('segments').innerHTML = segmentsHTML;
+            } else {
+                document.getElementById('segments').innerHTML = '';
+            }
+        }
+
+        // Load sample data on page load
+        window.addEventListener('load', () => {
+            loadSampleData();
+            
+            // Add file upload handler
+            document.getElementById('csvFile').addEventListener('change', async function(e) {
+                if (e.target.files.length > 0) {
+                    try {
+                        const csvText = await e.target.files[0].text();
+                        const appointments = parseCSV(csvText);
+                        const clinicProfile = {
+                            clinicType: document.getElementById('clinicType').value,
+                            providersPerBlock: parseInt(document.getElementById('providersPerBlock').value),
+                            avgServiceMinutes: parseInt(document.getElementById('avgServiceMinutes').value),
+                            timeBlockMinutes: parseInt(document.getElementById('timeBlockMinutes').value)
+                        };
+                        const data = { clinicProfile, appointments };
+                        document.getElementById('jsonInput').value = JSON.stringify(data, null, 2);
+                    } catch (error) {
+                        document.getElementById('error').innerHTML = 
+                            `<div class="error">❌ Error reading CSV: ${error.message}</div>`;
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+

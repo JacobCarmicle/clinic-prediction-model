@@ -10,6 +10,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
+from sklearn.base import BaseEstimator, TransformerMixin
 
 
 REQUIRED_COLS = [
@@ -23,6 +24,28 @@ REQUIRED_COLS = [
 ]
 
 TARGET_COL = "no_show"
+
+
+class BooleanToIntTransformer(BaseEstimator, TransformerMixin):
+    """Transformer that converts boolean to int and supports get_feature_names_out."""
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X):
+        """Convert boolean/object to int array."""
+        if hasattr(X, 'astype'):
+            # pandas Series/DataFrame
+            return X.astype(int).values.reshape(-1, 1)
+        # numpy array
+        return np.asarray(X, dtype=int).reshape(-1, 1)
+    
+    def get_feature_names_out(self, input_features=None):
+        """Return feature names - preserves input feature name."""
+        if input_features is None:
+            return np.array(['is_new_patient'])  # default
+        if isinstance(input_features, (list, np.ndarray)):
+            return np.asarray(input_features)
+        return np.array([input_features])
 
 
 def load_schema(schema_path: str) -> Dict[str, Any]:
@@ -56,7 +79,7 @@ def validate_df(df: pd.DataFrame, schema: Dict[str, Any]) -> None:
             bad = actual - allowed
             if bad:
                 raise ValueError(f"Invalid enum values in {col_name}: {sorted(bad)}. Allowed: {sorted(allowed)}")
-        
+
         # Range validation for numeric features
         if spec.get("type") == "numeric":
             col_data = df[col_name].dropna()
@@ -109,19 +132,9 @@ def build_preprocessor(scale_numeric: bool = True) -> ColumnTransformer:
         numeric_steps.append(("scaler", StandardScaler()))
     numeric = Pipeline(steps=numeric_steps)
 
-    # Boolean: convert to int (0/1), no imputation needed since it's required
-    # Simple passthrough with conversion - bool columns are already 0/1 in our data
-    # But we ensure they're int type
-    from sklearn.preprocessing import FunctionTransformer
-    def ensure_int(X):
-        """Ensure boolean-like column is int (0/1)."""
-        if hasattr(X, 'astype'):
-            return X.astype(int).values.reshape(-1, 1)
-        return np.asarray(X, dtype=int).reshape(-1, 1)
-    
-    boolean = Pipeline(steps=[
-        ("to_int", FunctionTransformer(ensure_int, validate=False, accept_sparse=False)),
-    ])
+    # Boolean: convert to int (0/1)
+    # Use the BooleanToIntTransformer class defined at module level
+    boolean = BooleanToIntTransformer()
 
     return ColumnTransformer(
         transformers=[

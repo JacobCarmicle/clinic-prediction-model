@@ -8,35 +8,39 @@ using ClinicFlow.Api.Services.Analysis;
 using ClinicFlow.Api.Services.Optimization;
 using System.Linq;
 using System;
+using ClinicFlow.Api.Services.Inference;
 
 [ApiController]
 [Route("schedule")]
 
 public class ScheduleController: ControllerBase{
+    private readonly Services.Inference.IInferenceService _inferenceService;
+
+    public ScheduleController(Services.Inference.IInferenceService inferenceService)
+    {
+        _inferenceService = inferenceService;
+    }
+
     [HttpPost("analyze")]
-    public IActionResult Analyze([FromBody] ScheduleRequestDto request)
+    public async Task<IActionResult> Analyze([FromBody] ScheduleRequestDto request)
     {
         var errors = ScheduleRequestValidator.Validate(request);
         if(errors.Count > 0){
             return BadRequest(new ErrorResponseDto("ValidationFailed", errors));
         }
-        //Baseline deterministic metrics(no ML, no simulation yet)
-        var (expectedKept, baselineRevenue) = BaselineMetricsCalculator.Compute(request);
+
+        // Get ML predictions (falls back to historical rates if ML unavailable)
+        var slotPreds = await _inferenceService.PredictAsync(request);
+
+        // Compute metrics using ML predictions
+        var (expectedKept, baselineRevenue) = BaselineMetricsCalculator.ComputeWithPredictions(request, slotPreds);
 
         //Calculate capacity metrics
         var blockCapacity = CapacityEstimator.ComputeBlockCapacityAppointments(request.ClinicProfile);
         var (overflow, isOverCapacity) = CapacityEstimator.ComputeOverflow(expectedKept, blockCapacity);
 
-        //Calculate segment-level metrics
-        var segments = SegmentMetricsCalculator.ComputeBySegment(request, blockCapacity);
-
-        //For now, we return "noShowProbability" equal to historical rate (stub)
-        var slotPreds = request.Appointments
-            .Select(a => new SlotPredictionStubDto(
-                a.AppointmentId,
-                a.HistoricalNoShowRate
-            ))
-            .ToList();
+        //Calculate segment-level metrics using ML predictions
+        var segments = SegmentMetricsCalculator.ComputeBySegmentWithPredictions(request, blockCapacity, slotPreds);
     
         var response = new ScheduleAnalysisResponseDto(
             new BaselineSummaryDto(

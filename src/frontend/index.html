@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClinicFlow - Schedule Optimizer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 2rem;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { color: #2563eb; margin-bottom: 1rem; }
+        h2 { color: #1e293b; margin-top: 2rem; margin-bottom: 1rem; font-size: 1.25rem; }
+        .section { margin-bottom: 2rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #334155; }
+        input, select, textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            margin-right: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        button:hover { background: #1d4ed8; }
+        button:disabled { background: #94a3b8; cursor: not-allowed; }
+        button.secondary {
+            background: #64748b;
+        }
+        button.secondary:hover {
+            background: #475569;
+        }
+        .results {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: #f8fafc;
+            border-radius: 4px;
+            display: none;
+        }
+        .metric {
+            display: inline-block;
+            margin: 0.5rem;
+            padding: 1rem;
+            background: white;
+            border-radius: 4px;
+            min-width: 200px;
+            border: 1px solid #e2e8f0;
+        }
+        .metric-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+        .metric-value { font-size: 24px; font-weight: bold; color: #1e293b; margin-top: 0.25rem; }
+        .loading { display: none; text-align: center; padding: 2rem; }
+        .error {
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #2563eb;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        small {
+            color: #64748b;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏥 ClinicFlow Schedule Optimizer</h1>
+        <p style="color: #64748b; margin-bottom: 2rem;">
+            Upload a schedule CSV or paste JSON to analyze appointment no-show predictions and optimize clinic capacity.
+        </p>
+        
+        <div class="section">
+            <h2>1. Upload Schedule</h2>
+            <label for="csvFile">CSV File:</label>
+            <input type="file" id="csvFile" accept=".csv">
+            <small>Or paste JSON directly in the text area below</small>
+        </div>
+
+        <div class="section">
+            <h2>2. Clinic Profile</h2>
+            <div class="grid">
+                <div>
+                    <label>Clinic Type:</label>
+                    <select id="clinicType">
+                        <option>PrimaryCare</option>
+                        <option>Dental</option>
+                        <option>PT</option>
+                        <option>Behavioral</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Providers per Block:</label>
+                    <input type="number" id="providersPerBlock" value="3" min="1">
+                </div>
+                <div>
+                    <label>Avg Service Minutes:</label>
+                    <input type="number" id="avgServiceMinutes" value="15" min="1">
+                </div>
+                <div>
+                    <label>Time Block Minutes:</label>
+                    <input type="number" id="timeBlockMinutes" value="240" min="1">
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>3. Schedule Data</h2>
+            <label for="scheduleJson">Schedule JSON:</label>
+            <textarea id="scheduleJson" rows="10" placeholder='{
+  "appointments": [
+    {
+      "appointmentId": 1,
+      "appointmentType": "NewPatient",
+      "dayOfWeek": "Monday",
+      "timeBlock": "Morning",
+      "leadTimeDays": 7,
+      "isNewPatient": true,
+      "historicalNoShowRate": 0.25,
+      "unitRevenue": 150.0
+    }
+  ]
+}'></textarea>
+        </div>
+
+        <div class="section">
+            <label>API Endpoint:</label>
+            <input type="text" id="apiUrl" value="https://localhost:7127" placeholder="http://localhost:5127">
+            <small>Update this if your API runs on a different URL</small>
+        </div>
+
+        <div>
+            <button id="analyzeBtn" onclick="analyzeSchedule()">📊 Analyze Schedule</button>
+            <button id="optimizeBtn" onclick="optimizeSchedule()" class="secondary">⚡ Optimize Strategy</button>
+            <button onclick="loadSample()" class="secondary">📝 Load Sample</button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Processing schedule...</p>
+        </div>
+
+        <div id="errorContainer"></div>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        const DEFAULT_API_URL = 'https://localhost:7127';
+
+        async function analyzeSchedule() {
+            const btn = document.getElementById('analyzeBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const errorContainer = document.getElementById('errorContainer');
+            
+            btn.disabled = true;
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            errorContainer.innerHTML = '';
+
+            try {
+                const request = buildRequest();
+                const apiUrl = document.getElementById('apiUrl').value || DEFAULT_API_URL;
+                
+                const response = await fetch(`${apiUrl}/schedule/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(request)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ error: 'Request failed' }));
+                    throw new Error(error.error || error.message || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayResults(data, 'Analysis Results');
+            } catch (error) {
+                errorContainer.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                console.error('Error:', error);
+            } finally {
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        async function optimizeSchedule() {
+            const btn = document.getElementById('optimizeBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const errorContainer = document.getElementById('errorContainer');
+            
+            btn.disabled = true;
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            errorContainer.innerHTML = '';
+
+            try {
+                const request = buildRequest();
+                const apiUrl = document.getElementById('apiUrl').value || DEFAULT_API_URL;
+                
+                // Add optimization constraints
+                request.constraints = {
+                    maxExpectedOverflowAppointments: 5.0,
+                    minDeltaRevenue: 100.0
+                };
+                request.search = {
+                    maxAdditionPerSegment: 10,
+                    maxTotalAdditions: 20
+                };
+
+                const response = await fetch(`${apiUrl}/schedule/optimize`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(request)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ error: 'Request failed' }));
+                    throw new Error(error.error || error.message || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayOptimizationResults(data);
+            } catch (error) {
+                errorContainer.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                console.error('Error:', error);
+            } finally {
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        function buildRequest() {
+            const scheduleJson = document.getElementById('scheduleJson').value;
+            let appointments = [];
+            
+            if (!scheduleJson.trim()) {
+                throw new Error('Please provide schedule JSON or upload a CSV file');
+            }
+            
+            try {
+                const parsed = JSON.parse(scheduleJson);
+                appointments = parsed.appointments || [];
+                
+                if (appointments.length === 0) {
+                    throw new Error('No appointments found in JSON');
+                }
+            } catch (e) {
+                if (e instanceof SyntaxError) {
+                    throw new Error('Invalid JSON format: ' + e.message);
+                }
+                throw e;
+            }
+
+            return {
+                clinicProfile: {
+                    clinicType: document.getElementById('clinicType').value,
+                    providersPerBlock: parseInt(document.getElementById('providersPerBlock').value),
+                    avgServiceMinutes: parseInt(document.getElementById('avgServiceMinutes').value),
+                    timeBlockMinutes: parseInt(document.getElementById('timeBlockMinutes').value)
+                },
+                appointments: appointments
+            };
+        }
+
+        function displayResults(data, title = 'Results') {
+            const results = document.getElementById('results');
+            results.style.display = 'block';
+            
+            const html = `
+                <h2>${title}</h2>
+                <div style="display: flex; flex-wrap: wrap; margin: 1rem 0;">
+                    <div class="metric">
+                        <div class="metric-label">Expected Kept</div>
+                        <div class="metric-value">${data.summary.expectedKeptAppointments.toFixed(1)}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Baseline Revenue</div>
+                        <div class="metric-value">$${data.summary.baselineRevenue.toFixed(2)}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Capacity</div>
+                        <div class="metric-value">${data.summary.blockCapacityAppointments.toFixed(1)}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Overflow</div>
+                        <div class="metric-value ${data.summary.isOverCapacity ? 'style="color: #dc2626;"' : ''}">${data.summary.expectedOverflowAppointments.toFixed(1)}</div>
+                    </div>
+                </div>
+                <h3 style="margin-top: 2rem;">Segments</h3>
+                <pre>${JSON.stringify(data.segments, null, 2)}</pre>
+                <h3 style="margin-top: 1rem;">Slot Predictions</h3>
+                <pre>${JSON.stringify(data.slotPredictions.slice(0, 10), null, 2)}${data.slotPredictions.length > 10 ? `\n... (${data.slotPredictions.length - 10} more)` : ''}</pre>
+            `;
+            
+            results.innerHTML = html;
+        }
+
+        function displayOptimizationResults(data) {
+            const results = document.getElementById('results');
+            results.style.display = 'block';
+            
+            const html = `
+                <h2>Optimization Results</h2>
+                <div style="display: flex; flex-wrap: wrap; margin: 1rem 0;">
+                    <div class="metric">
+                        <div class="metric-label">Revenue Increase</div>
+                        <div class="metric-value" style="color: #16a34a;">+$${data.delta.deltaRevenue.toFixed(2)}</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Additional Appointments</div>
+                        <div class="metric-value" style="color: #16a34a;">+${data.delta.deltaExpectedKeptAppointments.toFixed(1)}</div>
+                    </div>
+                </div>
+                <h3 style="margin-top: 2rem;">Recommended Strategy</h3>
+                <pre>${JSON.stringify(data.recommendedStrategy, null, 2)}</pre>
+                <h3 style="margin-top: 1rem;">Top Candidates</h3>
+                <pre>${JSON.stringify(data.topCandidates.slice(0, 5), null, 2)}</pre>
+            `;
+            
+            results.innerHTML = html;
+        }
+
+        function loadSample() {
+            document.getElementById('scheduleJson').value = JSON.stringify({
+                appointments: [
+                    {
+                        appointmentId: 1,
+                        appointmentType: "NewPatient",
+                        dayOfWeek: "Monday",
+                        timeBlock: "Morning",
+                        leadTimeDays: 7,
+                        isNewPatient: true,
+                        historicalNoShowRate: 0.25,
+                        unitRevenue: 150.0
+                    },
+                    {
+                        appointmentId: 2,
+                        appointmentType: "FollowUp",
+                        dayOfWeek: "Monday",
+                        timeBlock: "Morning",
+                        leadTimeDays: 14,
+                        isNewPatient: false,
+                        historicalNoShowRate: 0.15,
+                        unitRevenue: 100.0
+                    },
+                    {
+                        appointmentId: 3,
+                        appointmentType: "FollowUp",
+                        dayOfWeek: "Tuesday",
+                        timeBlock: "Afternoon",
+                        leadTimeDays: 21,
+                        isNewPatient: false,
+                        historicalNoShowRate: 0.12,
+                        unitRevenue: 100.0
+                    }
+                ]
+            }, null, 2);
+        }
+
+        // CSV upload handler
+        document.getElementById('csvFile').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            try {
+                const text = await file.text();
+                const lines = text.split('\n').filter(l => l.trim());
+                if (lines.length < 2) {
+                    throw new Error('CSV must have at least a header and one data row');
+                }
+                
+                const headers = lines[0].split(',').map(h => h.trim());
+                
+                // Convert CSV to JSON format
+                const appointments = lines.slice(1).map((line, idx) => {
+                    const values = line.split(',').map(v => v.trim());
+                    const appointment = { appointmentId: idx + 1 };
+                    
+                    headers.forEach((header, i) => {
+                        const value = values[i] || '';
+                        if (header === 'is_new_patient') {
+                            appointment.isNewPatient = value.toLowerCase() === 'true';
+                        } else if (header === 'lead_time_days' || header === 'appointment_id' || header === 'unit_revenue') {
+                            appointment[header.charAt(0).toUpperCase() + header.slice(1).replace(/_([a-z])/g, (g) => g[1].toUpperCase())] = parseInt(value) || parseFloat(value);
+                        } else if (header === 'historical_no_show_rate') {
+                            appointment.historicalNoShowRate = parseFloat(value);
+                        } else {
+                            const camelCase = header.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+                            appointment[camelCase.charAt(0).toUpperCase() + camelCase.slice(1)] = value;
+                        }
+                    });
+                    
+                    return appointment;
+                });
+                
+                document.getElementById('scheduleJson').value = JSON.stringify({ appointments }, null, 2);
+                document.getElementById('errorContainer').innerHTML = `<div style="background: #dcfce7; border: 1px solid #86efac; color: #166534; padding: 1rem; border-radius: 4px; margin: 1rem 0;">Loaded ${appointments.length} appointments from CSV</div>`;
+            } catch (error) {
+                document.getElementById('errorContainer').innerHTML = `<div class="error">CSV Error: ${error.message}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>
+

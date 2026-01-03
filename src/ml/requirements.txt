@@ -1,0 +1,26 @@
+# Core ML Dependencies (Required)
+# Note: On macOS, LightGBM requires libomp: brew install libomp
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+
+# GBDT Model Training (Required for train_gbdt.py)
+# macOS users: Install libomp first: brew install libomp
+lightgbm>=4.0.0
+
+# API Service (Required for api_service.py)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+
+# Visualization (Optional - for plotting calibration curves)
+# Uncomment if using plot_calibration.py:
+# matplotlib>=3.7.0
+
+# ONNX Export (Optional - for .NET deployment)
+# Uncomment if exporting models to ONNX:
+# skl2onnx>=1.15.0
+# onnx>=1.14.0
+# onnxruntime>=1.16.0
+

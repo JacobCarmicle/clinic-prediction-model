@@ -1,0 +1,41 @@
+{
+  "clinicProfile": {
+    "clinicType": "PrimaryCare",
+    "providersPerBlock": 2,
+    "avgServiceMinutes": 15,
+    "timeBlockMinutes": 240
+  },
+  "appointments": [
+    {
+      "appointmentId": 1,
+      "appointmentType": "FollowUp",
+      "dayOfWeek": "Tuesday",
+      "timeBlock": "Morning",
+      "leadTimeDays": 14,
+      "isNewPatient": false,
+      "historicalNoShowRate": 0.20,
+      "unitRevenue": 120.0
+    },
+    {
+      "appointmentId": 2,
+      "appointmentType": "FollowUp",
+      "dayOfWeek": "Tuesday",
+      "timeBlock": "Morning",
+      "leadTimeDays": 7,
+      "isNewPatient": false,
+      "historicalNoShowRate": 0.10,
+      "unitRevenue": 100.0
+    },
+    {
+      "appointmentId": 3,
+      "appointmentType": "NewPatient",
+      "dayOfWeek": "Friday",
+      "timeBlock": "Afternoon",
+      "leadTimeDays": 21,
+      "isNewPatient": true,
+      "historicalNoShowRate": 0.35,
+      "unitRevenue": 150.0
+    }
+  ]
+}
+
