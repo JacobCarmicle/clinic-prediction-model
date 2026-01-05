@@ -141,17 +141,28 @@ public class InferenceService : IInferenceService
 }
 
 // Internal DTOs for Python service response
+// Note: Using JsonPropertyName to handle snake_case from Python service
 internal record PythonPredictionResponse
 {
+    [System.Text.Json.Serialization.JsonPropertyName("predictions")]
     public List<PythonPrediction>? Predictions { get; init; }
+    
+    [System.Text.Json.Serialization.JsonPropertyName("schema_hash")]
     public string? SchemaHash { get; init; }
+    
+    [System.Text.Json.Serialization.JsonPropertyName("warnings")]
     public List<string>? Warnings { get; init; }
 }
 
 internal record PythonPrediction
 {
+    [System.Text.Json.Serialization.JsonPropertyName("no_show_probability")]
     public double NoShowProbability { get; init; }
+    
+    [System.Text.Json.Serialization.JsonPropertyName("confidence_interval")]
     public double[]? ConfidenceInterval { get; init; }
+    
+    [System.Text.Json.Serialization.JsonPropertyName("top_drivers")]
     public List<string>? TopDrivers { get; init; }
 }
 

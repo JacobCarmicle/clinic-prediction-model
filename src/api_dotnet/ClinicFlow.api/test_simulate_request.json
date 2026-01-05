@@ -1,0 +1,37 @@
+{
+  "clinicProfile": {
+    "clinicType": "PrimaryCare",
+    "providersPerBlock": 3,
+    "avgServiceMinutes": 15,
+    "timeBlockMinutes": 240
+  },
+  "appointments": [
+    {
+      "appointmentId": 1,
+      "appointmentType": "FollowUp",
+      "dayOfWeek": "Tuesday",
+      "timeBlock": "Morning",
+      "leadTimeDays": 14,
+      "isNewPatient": false,
+      "historicalNoShowRate": 0.20,
+      "unitRevenue": 120.0
+    },
+    {
+      "appointmentId": 2,
+      "appointmentType": "NewPatient",
+      "dayOfWeek": "Tuesday",
+      "timeBlock": "Morning",
+      "leadTimeDays": 7,
+      "isNewPatient": true,
+      "historicalNoShowRate": 0.25,
+      "unitRevenue": 150.0
+    }
+  ],
+  "strategy": {
+    "name": "Test Overbooking",
+    "overbookAdditionsBySegment": {
+      "Tuesday-Morning": 2
+    }
+  }
+}
+

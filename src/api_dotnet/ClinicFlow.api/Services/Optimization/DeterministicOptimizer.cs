@@ -3,12 +3,19 @@ namespace ClinicFlow.Api.Services.Optimization;
 using ClinicFlow.Api.Dtos.Requests;
 using ClinicFlow.Api.Dtos.Responses;
 using ClinicFlow.Api.Services.Analysis;
+using ClinicFlow.Api.Services.Inference;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 public static class DeterministicOptimizer
 {
-    public static ScheduleOptimizationResponseDto Optimize(ScheduleOptimizeRequestDto req)
+    /// <summary>
+    /// Optimize overbooking strategy using ML predictions and simulation.
+    /// </summary>
+    public static async Task<ScheduleOptimizationResponseDto> Optimize(
+        ScheduleOptimizeRequestDto req,
+        IInferenceService inferenceService)
     {
         var core = new ScheduleRequestDto(req.ClinicProfile, req.Appointments);
 
@@ -19,7 +26,7 @@ public static class DeterministicOptimizer
             new StrategyDto("Baseline", new Dictionary<string, int>())
         );
 
-        var baseline = StrategySimulationService.Simulate(baselineSimReq);
+        var baseline = await StrategySimulationService.Simulate(baselineSimReq, inferenceService);
 
         // Determine segments to consider
         var capacity = CapacityEstimator.ComputeBlockCapacityAppointments(req.ClinicProfile);
@@ -49,7 +56,7 @@ public static class DeterministicOptimizer
                     new StrategyDto($"Add {add} to {seg}", stratMap)
                 );
 
-                var sim = StrategySimulationService.Simulate(simReq);
+                var sim = await StrategySimulationService.Simulate(simReq, inferenceService);
 
                 var delta = sim.Delta;
 

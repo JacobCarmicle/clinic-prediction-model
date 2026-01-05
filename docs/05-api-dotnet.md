@@ -22,32 +22,36 @@ This layer contains no ML logic and no heavy computation — it coordinates.
 
 The API operates in three phases, progressively adding sophistication:
 
-**Phase A: Deterministic Baseline (Current MVP)**
+**Phase A: Deterministic Baseline**
 - Uses historical no-show rates directly (no ML inference)
 - Computes expected kept appointments: `Σ(1 - historical_no_show_rate)`
 - Calculates capacity and overflow metrics
 - Returns segment-level breakdowns
 - Fast, explainable, suitable for baseline analysis
+- **Status:** ✅ Complete (used as fallback when ML unavailable)
 
-**Phase B: ML-Enhanced Predictions (Future)**
+**Phase B: ML-Enhanced Predictions**
 - Replaces historical rates with ML model predictions
 - Per-slot no-show probabilities from trained model
 - Confidence intervals and feature drivers
 - Still deterministic expected values (no Monte Carlo)
+- **Status:** ✅ **COMPLETE** - Integrated on `/schedule/analyze`
 
-**Phase C: Monte Carlo Simulation (Future)**
-- Uses ML predictions as input to Monte Carlo engine
+**Phase C: Monte Carlo Simulation**
+- Uses probabilities as input to Monte Carlo engine
 - Samples attendance outcomes across many trials
 - Returns distributions, not just point estimates
 - Enables risk-based decision making
+- **Status:** ✅ **COMPLETE** - ML predictions integrated with Monte Carlo simulation
 
-**Current Implementation:**
-- `/schedule/analyze` → Phase A (deterministic baseline)
-- `/schedule/simulate` → Phase A with strategy overbooking (deterministic)
+**Current Implementation (Updated 2025):**
+- `/schedule/analyze` → Phase B ✅ (uses ML predictions with fallback to historical)
+- `/schedule/simulate` → Phase C ✅ (Monte Carlo using ML predictions!)
 
-**Future Evolution:**
-- Phase B: ML inference service integration
-- Phase C: C-based Monte Carlo engine via P/Invoke
+**Evolution Complete:**
+- ✅ Phase B: ML inference service integration - **DONE**
+- ✅ Phase C: C-based Monte Carlo engine via P/Invoke - **DONE**
+- ✅ **ML + Simulation Integration** - **DONE** (Jan 2025)
 
 4. API Endpoints
 4.1 Health & Metadata

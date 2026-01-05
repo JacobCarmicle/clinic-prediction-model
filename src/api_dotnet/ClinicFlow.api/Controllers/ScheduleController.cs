@@ -57,7 +57,7 @@ public class ScheduleController: ControllerBase{
     }
 
     [HttpPost("simulate")]
-    public IActionResult Simulate([FromBody] ScheduleSimulateRequestDto request)
+    public async Task<IActionResult> Simulate([FromBody] ScheduleSimulateRequestDto request)
     {
         var errors = ScheduleRequestValidator.ValidateSimulate(request);
         if (errors.Count > 0)
@@ -65,12 +65,13 @@ public class ScheduleController: ControllerBase{
             return BadRequest(new ErrorResponseDto("ValidationFailed", errors));
         }
 
-        var response = StrategySimulationService.Simulate(request);
+        // Get ML predictions and run simulation with them
+        var response = await StrategySimulationService.Simulate(request, _inferenceService);
         return Ok(response);
     }
 
     [HttpPost("optimize")]
-    public IActionResult Optimize([FromBody] ScheduleOptimizeRequestDto request)
+    public async Task<IActionResult> Optimize([FromBody] ScheduleOptimizeRequestDto request)
     {
         var errors = ScheduleRequestValidator.ValidateOptimize(request);
         if (errors.Count > 0)
@@ -78,7 +79,7 @@ public class ScheduleController: ControllerBase{
             return BadRequest(new ErrorResponseDto("ValidationFailed", errors));
         }
 
-        var response = DeterministicOptimizer.Optimize(request);
+        var response = await DeterministicOptimizer.Optimize(request, _inferenceService);
         return Ok(response);
     }
 }

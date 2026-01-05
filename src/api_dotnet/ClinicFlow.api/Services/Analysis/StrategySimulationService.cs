@@ -3,15 +3,23 @@ namespace ClinicFlow.Api.Services.Analysis;
 using ClinicFlow.Api.Dtos.Requests;
 using ClinicFlow.Api.Dtos.Responses;
 using ClinicFlow.Api.Services.Simulation;
+using ClinicFlow.Api.Services.Inference;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 public static class StrategySimulationService
 {
     private static readonly SimulationService _simulationService = new();
 
-    public static ScheduleSimulationResponseDto Simulate(ScheduleSimulateRequestDto req)
+    /// <summary>
+    /// Simulate schedule outcomes with overbooking strategy using ML predictions.
+    /// Falls back to historical rates if ML service unavailable.
+    /// </summary>
+    public static async Task<ScheduleSimulationResponseDto> Simulate(
+        ScheduleSimulateRequestDto req,
+        IInferenceService inferenceService)
     {
         // Build segment mapping: segment key -> segment ID (byte)
         var segmentKeys = req.Appointments
@@ -24,10 +32,18 @@ public static class StrategySimulationService
             .Select((key, idx) => new { key, id = (byte)idx })
             .ToDictionary(x => x.key, x => x.id);
 
+        // Get ML predictions (falls back to historical rates if ML unavailable)
+        var scheduleRequest = new ScheduleRequestDto(req.ClinicProfile, req.Appointments);
+        var mlPredictions = await inferenceService.PredictAsync(scheduleRequest);
+        
+        // Create lookup dictionary for ML predictions
+        var predLookup = mlPredictions.ToDictionary(p => p.AppointmentId, p => p.NoShowProbability);
+
         // Convert appointments to simulation format with segment IDs
+        // Phase C: Use ML predictions instead of historical rates
         var simAppointments = req.Appointments.Select(a => new SimulationAppointment
         {
-            NoShowProbability = a.HistoricalNoShowRate, // Phase A: use historical rate
+            NoShowProbability = (float)predLookup.GetValueOrDefault(a.AppointmentId, a.HistoricalNoShowRate),
             UnitRevenue = a.UnitRevenue,
             ServiceMinutes = null, // Use default from config
             SegmentId = segmentKeyToId[SegmentKeyBuilder.Build(a)]
@@ -50,10 +66,11 @@ public static class StrategySimulationService
         var baselineOverflow = Math.Max(0.0, baselineResult.ExpectedKept - capacity);
         var baselineIsOver = baselineOverflow > 0.000001;
 
-        // Build baseline segments using deterministic calculation for comparison
-        var baselineSegments = SegmentMetricsCalculator.ComputeBySegment(
+        // Build baseline segments using ML predictions for consistency
+        var baselineSegments = SegmentMetricsCalculator.ComputeBySegmentWithPredictions(
             new ScheduleRequestDto(req.ClinicProfile, req.Appointments),
-            capacity
+            capacity,
+            mlPredictions
         );
 
         // Prepare strategy overbooking additions
@@ -110,8 +127,9 @@ public static class StrategySimulationService
                 .Where(a => SegmentKeyBuilder.Build(a) == segKey)
                 .ToList();
 
+            // Use ML predictions for segment average (more accurate than historical rates)
             var segAvgNoShow = segAppointments.Count > 0
-                ? segAppointments.Average(a => (double)a.HistoricalNoShowRate)
+                ? segAppointments.Average(a => predLookup.GetValueOrDefault(a.AppointmentId, a.HistoricalNoShowRate))
                 : 0.2;
             var segAvgRevenue = segAppointments.Count > 0
                 ? segAppointments.Average(a => (double)a.UnitRevenue)
